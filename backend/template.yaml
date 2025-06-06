@@ -28,6 +28,54 @@ Resources:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
 
+  # NEW: Define the SQS queue that will connect our functions
+  AdContentQueue:
+    Type: AWS::SQS::Queue
+
+  # --- Ad Generation and Posting Functions ---
+
+  AdGenerationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/ad_generation/
+      Handler: app.lambda_handler
+      Description: Generate ad content using Amazon Bedrock
+      # CHANGE: The policy is now for SQS, not Lambda Invoke
+      Policies:
+        - Statement:
+          - Effect: Allow
+            Action:
+              - bedrock:InvokeModel
+            Resource: "*"
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt AdContentQueue.QueueName
+      Events:
+        ManualTestApi:
+          Type: Api
+          Properties:
+            Path: /manual-test-post
+            Method: post
+      # CHANGE: The environment variable now holds the SQS Queue URL
+      Environment:
+        Variables:
+          AD_CONTENT_QUEUE_URL: !Ref AdContentQueue
+
+  PostToInstagramFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/post_to_instagram/
+      Handler: app.lambda_handler
+      Description: Post generated content to Instagram
+      # CHANGE: This function is now triggered by SQS, not called directly.
+      # SAM will automatically grant this function the necessary permissions
+      # to read and delete messages from the queue.
+      Events:
+        QueueEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt AdContentQueue.Arn
+            BatchSize: 1 # Process one ad at a time
+
   # --- CRUD Functions for Businesses ---
 
   CreateBusinessFunction:
@@ -110,6 +158,26 @@ Resources:
             Path: /businesses/{businessID}
             Method: delete
 
+  AdGenerationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/ad_generation/
+      Handler: app.lambda_handler
+      Description: Generate ad content using Amazon Bedrock
+      # Add a new policy to allow this function to call Bedrock
+      Policies:
+        - Statement:
+          - Effect: Allow
+            Action:
+              - bedrock:InvokeModel
+            Resource: "*"
+      Events:
+        ManualTestApi:
+          Type: Api
+          Properties:
+            Path: /manual-test-post
+            Method: post
+
 Outputs:
   ApiGatewayEndpoint:
     Description: "API Gateway endpoint URL for Prod stage"
@@ -122,3 +190,9 @@ Outputs:
     Value: !Ref BusinessesTable
     Export:
       Name: !Sub "${AWS::StackName}-BusinessesTableName"
+
+  AdContentQueueUrl:
+    Description: "SQS Queue URL for ad content processing"
+    Value: !Ref AdContentQueue
+    Export:
+      Name: !Sub "${AWS::StackName}-AdContentQueueUrl"
