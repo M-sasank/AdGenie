@@ -1,0 +1,18 @@
+{
+  "user_id": "test_user_123",
+  "business_profile": {
+    "business_name": "Cool Coffee Co",
+    "industry": "Food & Beverage",
+    "description": "Local coffee shop serving artisan coffee and pastries",
+    "target_audience": "Young professionals, students, coffee enthusiasts",
+    "business_hours": "Mon-Fri: 6AM-8PM, Sat-Sun: 7AM-9PM",
+    "location": "Downtown Seattle, WA"
+  },
+  "instagram_connection": {
+    "username": "coolcoffeeco",
+    "access_token": "sample_access_token_12345",
+    "user_id": "ig_user_456",
+    "connected_at": "2024-01-01T10:00:00Z",
+    "permissions": ["instagram_basic", "pages_show_list"]
+  }
+} 

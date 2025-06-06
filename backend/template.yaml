@@ -1,0 +1,112 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: >
+  The backend for the AdGenie project. This stack includes
+  the database, APIs, and business logic for generating and posting social media ads.
+
+Globals:
+  Function:
+    Timeout: 10
+    # Using Python 3.11 as requested (latest patch version available)
+    Runtime: python3.11
+    MemorySize: 128
+    Environment:
+      Variables:
+        PYTHONPATH: /var/runtime
+    Policies:
+      - DynamoDBCrudPolicy:
+          TableName: !Ref BusinessesTable
+
+Resources:
+  # DynamoDB Table
+  BusinessesTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      TableName: Businesses
+      PrimaryKey:
+        Name: businessID
+        Type: String
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
+  # --- CRUD Functions for Businesses ---
+
+  CreateBusinessFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/business_create/
+      Handler: app.lambda_handler
+      Description: Create a new business
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /businesses
+            Method: post
+
+  ReadBusinessFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/business_read/
+      Handler: app.lambda_handler
+      Description: Get a business by ID
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /businesses/{businessID}
+            Method: get
+
+  ListBusinessesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/business_list/
+      Handler: app.lambda_handler
+      Description: List all businesses
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /businesses
+            Method: get
+
+  UpdateBusinessFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/business_update/
+      Handler: app.lambda_handler
+      Description: Update a business by ID
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /businesses/{businessID}
+            Method: put
+
+  DeleteBusinessFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/business_delete/
+      Handler: app.lambda_handler
+      Description: Delete a business by ID
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /businesses/{businessID}
+            Method: delete
+
+Outputs:
+  ApiGatewayEndpoint:
+    Description: "API Gateway endpoint URL for Prod stage"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiGatewayEndpoint"
+
+  BusinessesTableName:
+    Description: "DynamoDB table name for businesses"
+    Value: !Ref BusinessesTable
+    Export:
+      Name: !Sub "${AWS::StackName}-BusinessesTableName"
