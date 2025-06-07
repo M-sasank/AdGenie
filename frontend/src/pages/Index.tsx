@@ -1,10 +1,10 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Zap, Target, Clock, TrendingUp, Instagram, Bot } from "lucide-react";
 import AuthModal from "@/components/auth/AuthModal";
+import AnimatedShowcase from "@/components/AnimatedShowcase";
 
 const Index = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -21,7 +21,7 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="container mx-auto px-6 py-8 flex justify-between items-center backdrop-blur-xl bg-white/80 sticky top-0 z-50 border-b border-gray-100">
         <div className="flex items-center space-x-3">
@@ -88,14 +88,19 @@ const Index = () => {
       </section>
 
       {/* Features Grid */}
-      <section className="container mx-auto px-6 py-24 bg-gray-50">
+      <section className="container mx-auto px-6 py-24 bg-muted/30">
         <div className="text-center mb-20">
-          <h2 className="text-4xl md:text-5xl font-bold mb-6 text-gray-900 tracking-tight">
+          <h2 className="text-4xl md:text-5xl font-bold mb-6 text-foreground tracking-tight">
             How AdGenie Works
           </h2>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto font-medium">
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto font-medium">
             Set it up once, then watch your AI marketing intern work 24/7
           </p>
+        </div>
+
+        {/* Animated Showcase */}
+        <div className="mb-20">
+          <AnimatedShowcase />
         </div>
 
         <div className="grid md:grid-cols-3 gap-8 mb-20">
