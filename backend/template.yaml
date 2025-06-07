@@ -1,19 +1,14 @@
-AWSTemplateFormatVersion: '2010-09-09'
-Transform: AWS::Serverless-2016-10-31
-
-Description: >
-  The backend for the AdGenie project. This stack includes
-  the database, APIs, and business logic for generating and posting social media ads.
-
+# Add this template-level tag to be applied to resources that support tags
 Globals:
   Function:
     Timeout: 10
-    # Using Python 3.11 as requested (latest patch version available)
     Runtime: python3.11
     MemorySize: 128
     Environment:
       Variables:
         PYTHONPATH: /var/runtime
+    Tags:
+      auto-delete: no
 
 Resources:
   # DynamoDB Table
@@ -27,20 +22,24 @@ Resources:
       ProvisionedThroughput:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
+      Tags:
+        auto-delete: no
 
-  # NEW: Define the SQS queue that will connect our functions
+  # SQS Queue
   AdContentQueue:
     Type: AWS::SQS::Queue
+    Properties:
+      Tags:
+        - Key: auto-delete
+          Value: no
 
-  # --- Ad Generation and Posting Functions ---
-
+  # Lambda Functions (they inherit tags from Globals, but you can also specify explicitly)
   AdGenerationFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: src/ad_generation/
       Handler: app.lambda_handler
       Description: Generate ad content using Amazon Bedrock
-      # CHANGE: The policy is now for SQS, not Lambda Invoke
       Policies:
         - Statement:
           - Effect: Allow
@@ -55,10 +54,11 @@ Resources:
           Properties:
             Path: /manual-test-post
             Method: post
-      # CHANGE: The environment variable now holds the SQS Queue URL
       Environment:
         Variables:
           AD_CONTENT_QUEUE_URL: !Ref AdContentQueue
+      Tags:
+        auto-delete: no
 
   PostToInstagramFunction:
     Type: AWS::Serverless::Function
@@ -66,17 +66,14 @@ Resources:
       CodeUri: src/post_to_instagram/
       Handler: app.lambda_handler
       Description: Post generated content to Instagram
-      # CHANGE: This function is now triggered by SQS, not called directly.
-      # SAM will automatically grant this function the necessary permissions
-      # to read and delete messages from the queue.
       Events:
         QueueEvent:
           Type: SQS
           Properties:
             Queue: !GetAtt AdContentQueue.Arn
-            BatchSize: 1 # Process one ad at a time
-
-  # --- CRUD Functions for Businesses ---
+            BatchSize: 1
+      Tags:
+        auto-delete: no
 
   CreateBusinessFunction:
     Type: AWS::Serverless::Function
@@ -93,6 +90,8 @@ Resources:
           Properties:
             Path: /businesses
             Method: post
+      Tags:
+        auto-delete: no
 
   ReadBusinessFunction:
     Type: AWS::Serverless::Function
@@ -109,6 +108,8 @@ Resources:
           Properties:
             Path: /businesses/{businessID}
             Method: get
+      Tags:
+        auto-delete: no
 
   ListBusinessesFunction:
     Type: AWS::Serverless::Function
@@ -125,6 +126,8 @@ Resources:
           Properties:
             Path: /businesses
             Method: get
+      Tags:
+        auto-delete: no
 
   UpdateBusinessFunction:
     Type: AWS::Serverless::Function
@@ -141,6 +144,8 @@ Resources:
           Properties:
             Path: /businesses/{businessID}
             Method: put
+      Tags:
+        auto-delete: no
 
   DeleteBusinessFunction:
     Type: AWS::Serverless::Function
@@ -157,42 +162,5 @@ Resources:
           Properties:
             Path: /businesses/{businessID}
             Method: delete
-
-  AdGenerationFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: src/ad_generation/
-      Handler: app.lambda_handler
-      Description: Generate ad content using Amazon Bedrock
-      # Add a new policy to allow this function to call Bedrock
-      Policies:
-        - Statement:
-          - Effect: Allow
-            Action:
-              - bedrock:InvokeModel
-            Resource: "*"
-      Events:
-        ManualTestApi:
-          Type: Api
-          Properties:
-            Path: /manual-test-post
-            Method: post
-
-Outputs:
-  ApiGatewayEndpoint:
-    Description: "API Gateway endpoint URL for Prod stage"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
-    Export:
-      Name: !Sub "${AWS::StackName}-ApiGatewayEndpoint"
-
-  BusinessesTableName:
-    Description: "DynamoDB table name for businesses"
-    Value: !Ref BusinessesTable
-    Export:
-      Name: !Sub "${AWS::StackName}-BusinessesTableName"
-
-  AdContentQueueUrl:
-    Description: "SQS Queue URL for ad content processing"
-    Value: !Ref AdContentQueue
-    Export:
-      Name: !Sub "${AWS::StackName}-AdContentQueueUrl"
+      Tags:
+        auto-delete: no
