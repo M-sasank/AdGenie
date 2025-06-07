@@ -1,4 +1,10 @@
-# Add this template-level tag to be applied to resources that support tags
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: >
+  The backend for the AdGenie project. This stack includes
+  the database, APIs, and business logic for generating and posting social media ads.
+
 Globals:
   Function:
     Timeout: 10
@@ -6,9 +12,10 @@ Globals:
     MemorySize: 128
     Environment:
       Variables:
-        PYTHONPATH: /var/runtime
-    Tags:
-      auto-delete: no
+        REGION: !Ref AWS::Region  # Replace PYTHONPATH with something more useful
+
+# Rest of your template remains the same
+
 
 Resources:
   # DynamoDB Table
