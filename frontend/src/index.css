@@ -37,47 +37,32 @@
     --radius: 0.5rem;
 
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
-
     --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 98%;
-
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
-
     --primary: 210 40% 98%;
     --primary-foreground: 222.2 47.4% 11.2%;
-
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
-
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
-
     --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 40% 98%;
-
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
@@ -96,7 +81,6 @@
   * {
     @apply border-border;
   }
-
   body {
     @apply bg-background text-foreground;
   }
@@ -195,14 +179,20 @@
     animation: formSuccess 0.5s ease-out forwards;
   }
 
+  .animate-ripple {
+    animation: ripple 0.6s ease-out forwards;
+  }
+
+  /* Modal animations */
   .animate-modal-enter {
-    animation: modalEnter 0.3s ease-out forwards;
+    animation: modalEnter 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
   }
 
   .animate-modal-exit {
-    animation: modalExit 0.3s ease-out forwards;
+    animation: modalExit 0.3s cubic-bezier(0.55, 0.06, 0.68, 0.19) forwards;
   }
 
+  /* Enhanced button animations */
   .animate-button-press {
     animation: buttonPress 0.2s ease-out forwards;
   }
@@ -212,126 +202,132 @@
   }
 
   .glass-effect {
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(20px) saturate(180%);
+    background: rgba(255, 255, 255, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.3);
   }
 
   .apple-button-hover {
-    transition: all 0.3s ease;
-    transform-origin: center;
+    transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   }
 
   .apple-button-hover:hover {
-    transform: scale(1.05);
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
   }
 
+  /* Magnetic hover effect */
   .magnetic-hover {
-    transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   }
 
   .magnetic-hover:hover {
-    transform: translateY(-2px);
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
   }
 
+  /* AdGenie scene entrance/exit animations */
   .adgenie-fade-in {
-    animation: adgenie-fade-in 0.6s ease-out forwards;
+    @apply opacity-0;
+    animation: adgenie-fade-in 0.7s ease-out 0s forwards;
   }
-
   .adgenie-fade-in-up {
-    animation: adgenie-fade-in-up 0.6s ease-out forwards;
+    @apply opacity-0;
+    animation: adgenie-fade-in-up 0.7s cubic-bezier(0.23,1,0.32,1) 0s forwards;
   }
-
   .adgenie-slide-in-left {
-    animation: adgenie-slide-in-left 0.6s ease-out forwards;
+    animation: adgenie-slide-in-left 0.7s cubic-bezier(0.23,1,0.32,1) 0s forwards;
   }
-
   .adgenie-scale-in {
-    animation: adgenie-scale-in 0.6s ease-out forwards;
+    animation: adgenie-scale-in 0.5s cubic-bezier(0.23,1,0.32,1) 0s forwards;
   }
 
+  /* Animation for smooth scene switching and staged fade-ins */
   .scene-enter {
-    opacity: 0;
+    animation: fade-in-custom 0.7s ease-in-out;
   }
-
   .scene-exit {
-    opacity: 1;
+    animation: fade-out-custom 0.5s cubic-bezier(0.86,0,0.07,1);
   }
-
   .scene-animate-in {
-    animation: fadeIn 0.6s ease-out forwards;
+    transition: opacity 0.7s, transform 0.7s;
+    opacity: 1 !important;
+    z-index: 10;
   }
-
   .scene-insta-visible {
-    animation: fadeIn 0.6s ease-out forwards;
+    transition: all 1s cubic-bezier(0.22,1,0.36,1);
+    opacity: 1 !important;
+    transform: scale(1.08);
   }
-
   .scene-insta-hidden {
-    animation: fadeOut 0.6s ease-out forwards;
+    transition: all 0.9s cubic-bezier(0.86,0,0.07,1);
+    opacity: 0;
+    transform: scale(0.94);
   }
-
+  /* Staggered fade-in utilities for children */
   .fade-in-delayed-1 { animation: fade-in-custom 0.6s 0.15s forwards; opacity:0; }
   .fade-in-delayed-2 { animation: fade-in-custom 0.6s 0.35s forwards; opacity:0; }
   .fade-in-delayed-3 { animation: fade-in-custom 0.6s 0.55s forwards; opacity:0; }
   .fade-in-delayed-4 { animation: fade-in-custom 0.6s 0.75s forwards; opacity:0; }
   .fade-in-delayed-5 { animation: fade-in-custom 0.6s 0.90s forwards; opacity:0; }
-
-  .animate-spin-slow {
-    animation: spin 3s linear infinite;
-  }
 }
-
 @keyframes fadeIn {
   from {
     opacity: 0;
+    transform: translateY(20px);
   }
   to {
     opacity: 1;
+    transform: translateY(0);
   }
 }
 
 @keyframes slideUp {
   from {
-    transform: translateY(20px);
     opacity: 0;
+    transform: translateY(30px);
   }
   to {
-    transform: translateY(0);
     opacity: 1;
+    transform: translateY(0);
   }
 }
 
 @keyframes scaleIn {
   from {
-    transform: scale(0.95);
     opacity: 0;
+    transform: scale(0.9);
   }
   to {
-    transform: scale(1);
     opacity: 1;
+    transform: scale(1);
   }
 }
 
+/* Apple-inspired keyframes */
 @keyframes appleSlideIn {
   from {
-    transform: translateX(-100%);
     opacity: 0;
+    transform: translateX(100px) scale(0.95);
+    filter: blur(4px);
   }
   to {
-    transform: translateX(0);
     opacity: 1;
+    transform: translateX(0) scale(1);
+    filter: blur(0);
   }
 }
 
 @keyframes appleSlideOut {
   from {
-    transform: translateX(0);
     opacity: 1;
+    transform: translateX(0) scale(1);
+    filter: blur(0);
   }
   to {
-    transform: translateX(100%);
     opacity: 0;
+    transform: translateX(-100px) scale(0.95);
+    filter: blur(4px);
   }
 }
 
@@ -346,34 +342,39 @@
 
 @keyframes appleGlow {
   from {
-    box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
   }
   to {
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 0 40px rgba(59, 130, 246, 0.4);
   }
 }
 
 @keyframes appleBounce {
   0% {
-    transform: scale(1);
+    opacity: 0;
+    transform: scale(0.3) translateY(50px);
   }
   50% {
-    transform: scale(1.1);
+    opacity: 1;
+    transform: scale(1.05) translateY(-10px);
+  }
+  70% {
+    transform: scale(0.95) translateY(5px);
   }
   100% {
-    transform: scale(1);
+    opacity: 1;
+    transform: scale(1) translateY(0);
   }
 }
 
 @keyframes applePulse {
-  0% {
+  0%, 100% {
     transform: scale(1);
+    opacity: 1;
   }
   50% {
     transform: scale(1.05);
-  }
-  100% {
-    transform: scale(1);
+    opacity: 0.8;
   }
 }
 
@@ -388,134 +389,141 @@
 
 @keyframes float {
   0%, 100% {
-    transform: translateY(0);
+    transform: translateY(0px);
   }
   50% {
-    transform: translateY(-10px);
+    transform: translateY(-8px);
   }
 }
 
+/* Enhanced cursor animations */
 @keyframes cursorClick {
   0% {
     transform: scale(1);
   }
   50% {
-    transform: scale(0.8);
+    transform: scale(0.9);
   }
   100% {
-    transform: scale(1);
+    transform: scale(1.1);
   }
 }
 
 @keyframes cursorHover {
-  from {
+  0% {
     transform: scale(1);
   }
-  to {
-    transform: scale(1.2);
+  100% {
+    transform: scale(1.1);
   }
 }
 
 @keyframes cursorTrail {
-  from {
+  0% {
     opacity: 1;
     transform: scale(1);
   }
-  to {
+  100% {
     opacity: 0;
-    transform: scale(2);
+    transform: scale(1.5);
   }
 }
 
+/* Form interaction keyframes */
 @keyframes formFocus {
-  from {
+  0% {
     transform: scale(1);
-    box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
   }
-  to {
+  100% {
     transform: scale(1.02);
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
   }
 }
 
 @keyframes formSuccess {
   0% {
     transform: scale(1);
+    background-color: rgb(249, 250, 251);
   }
   50% {
-    transform: scale(1.05);
+    transform: scale(1.02);
+    background-color: rgb(240, 253, 244);
   }
   100% {
     transform: scale(1);
+    background-color: rgb(249, 250, 251);
   }
 }
 
 @keyframes ripple {
   0% {
-    transform: scale(0);
     opacity: 1;
+    transform: scale(0);
   }
   100% {
-    transform: scale(2);
     opacity: 0;
+    transform: scale(4);
   }
 }
 
+/* Modal animations */
 @keyframes modalEnter {
-  from {
+  0% {
     opacity: 0;
-    transform: scale(0.95);
+    transform: scale(0.9) translateY(20px);
   }
-  to {
+  100% {
     opacity: 1;
-    transform: scale(1);
+    transform: scale(1) translateY(0);
   }
 }
 
 @keyframes modalExit {
-  from {
+  0% {
     opacity: 1;
-    transform: scale(1);
+    transform: scale(1) translateY(0);
   }
-  to {
+  100% {
     opacity: 0;
-    transform: scale(0.95);
+    transform: scale(0.9) translateY(20px);
   }
 }
 
+/* Button animations */
 @keyframes buttonPress {
-  from {
+  0% {
     transform: scale(1);
   }
-  to {
+  100% {
     transform: scale(0.95);
   }
 }
 
 @keyframes buttonRelease {
-  from {
+  0% {
     transform: scale(0.95);
   }
-  to {
+  100% {
     transform: scale(1);
   }
 }
 
 @keyframes shimmer {
   0% {
-    background-position: -200% 0;
+    transform: translateX(-100%);
   }
   100% {
-    background-position: 200% 0;
+    transform: translateX(100%);
   }
 }
 
 @keyframes glow {
-  from {
-    box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+  0% {
+    opacity: 0.3;
   }
-  to {
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+  100% {
+    opacity: 0.8;
   }
 }
 
@@ -523,28 +531,31 @@
   from { opacity: 0; }
   to { opacity: 1; }
 }
-
 @keyframes adgenie-fade-in-up {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  from { opacity: 0; transform: translateY(32px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-
 @keyframes adgenie-slide-in-left {
-  from { transform: translateX(-20px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+  from { opacity: 0; transform: translateX(-48px);}
+  to   { opacity: 1; transform: translateX(0);}
 }
-
 @keyframes adgenie-scale-in {
-  from { transform: scale(0.95); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
+  from { opacity: 0; transform: scale(0.92);}
+  to   { opacity: 1; transform: scale(1);}
 }
 
 @keyframes fade-in-custom {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { opacity: 0; transform: translateY(18px) scale(0.98);}
+  to { opacity: 1; transform: translateY(0) scale(1);}
+}
+@keyframes fade-out-custom {
+  from { opacity: 1; transform: translateY(0) scale(1);}
+  to { opacity: 0; transform: translateY(30px) scale(0.96);}
 }
 
-@keyframes fade-out-custom {
-  from { opacity: 1; }
-  to { opacity: 0; }
+/* Extra smooth slow spin */
+@layer utilities {
+  .animate-spin-slow {
+    animation: spin 5s linear infinite;
+  }
 }
