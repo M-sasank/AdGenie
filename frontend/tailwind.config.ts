@@ -1,4 +1,3 @@
-
 import type { Config } from "tailwindcss";
 import { nextui } from "@nextui-org/react";
 
@@ -71,6 +70,9 @@ export default {
 				md: 'calc(var(--radius) - 2px)',
 				sm: 'calc(var(--radius) - 4px)'
 			},
+      boxShadow: {
+        'siri-glow': '0 0 8px 2px hsl(var(--primary) / 0.5)',
+      },
 			keyframes: {
 				'accordion-down': {
 					from: {
@@ -87,11 +89,11 @@ export default {
 					to: {
 						height: '0'
 					}
-				}
+				},
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
 			}
 		}
 	},

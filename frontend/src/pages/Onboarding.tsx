@@ -6,10 +6,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { TimePicker } from '@/components/ui/time-picker';
 import { toast } from 'sonner';
 import { Bot, MapPin, Clock, Coffee, Shirt, Heart, Sparkles, CheckCircle, Building2, Palette, Package, ArrowRight, ArrowLeft, User, MessageSquare, Zap, Sun, CloudRain, Calendar, DollarSign, PartyPopper, Instagram } from 'lucide-react';
+import { TriggerCard } from '@/components/onboarding/TriggerCard';
 
 interface BusinessData {
   businessName: string;
@@ -345,36 +345,24 @@ const Onboarding = () => {
             <h3 className="text-lg font-semibold text-gray-900">Weather-Based Posts</h3>
           </div>
           <div className="space-y-3 ml-11">
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div>
-                <p className="font-medium text-gray-900">Hot & Sunny Days</p>
-                <p className="text-sm text-gray-600">Promote cold drinks and refreshing items</p>
-              </div>
-              <Switch 
-                checked={businessData.triggers.weather.hotSunny}
-                onCheckedChange={(checked) => handleTriggerChange('weather', 'hotSunny', checked)}
-              />
-            </div>
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div>
-                <p className="font-medium text-gray-900">Rainy Weather</p>
-                <p className="text-sm text-gray-600">Promote warm, cozy items and indoor comfort</p>
-              </div>
-              <Switch 
-                checked={businessData.triggers.weather.rainy}
-                onCheckedChange={(checked) => handleTriggerChange('weather', 'rainy', checked)}
-              />
-            </div>
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div>
-                <p className="font-medium text-gray-900">Cool & Pleasant</p>
-                <p className="text-sm text-gray-600">Perfect weather for outdoor dining or activities</p>
-              </div>
-              <Switch 
-                checked={businessData.triggers.weather.coolPleasant}
-                onCheckedChange={(checked) => handleTriggerChange('weather', 'coolPleasant', checked)}
-              />
-            </div>
+            <TriggerCard
+              label="Hot & Sunny Days"
+              description="Promote cold drinks and refreshing items"
+              checked={businessData.triggers.weather.hotSunny}
+              onToggle={(checked) => handleTriggerChange('weather', 'hotSunny', checked)}
+            />
+            <TriggerCard
+              label="Rainy Weather"
+              description="Promote warm, cozy items and indoor comfort"
+              checked={businessData.triggers.weather.rainy}
+              onToggle={(checked) => handleTriggerChange('weather', 'rainy', checked)}
+            />
+            <TriggerCard
+              label="Cool & Pleasant"
+              description="Perfect weather for outdoor dining or activities"
+              checked={businessData.triggers.weather.coolPleasant}
+              onToggle={(checked) => handleTriggerChange('weather', 'coolPleasant', checked)}
+            />
           </div>
         </div>
 
@@ -387,36 +375,24 @@ const Onboarding = () => {
             <h3 className="text-lg font-semibold text-gray-900">Time-Based Campaigns</h3>
           </div>
           <div className="space-y-3 ml-11">
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div>
-                <p className="font-medium text-gray-900">Monday Coffee Motivation</p>
-                <p className="text-sm text-gray-600">Start the week with energizing posts every Monday</p>
-              </div>
-              <Switch 
-                checked={businessData.triggers.timeBased.mondayCoffee}
-                onCheckedChange={(checked) => handleTriggerChange('timeBased', 'mondayCoffee', checked)}
-              />
-            </div>
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div>
-                <p className="font-medium text-gray-900">Payday Specials</p>
-                <p className="text-sm text-gray-600">Special offers on the last day of each month</p>
-              </div>
-              <Switch 
-                checked={businessData.triggers.timeBased.paydaySales}
-                onCheckedChange={(checked) => handleTriggerChange('timeBased', 'paydaySales', checked)}
-              />
-            </div>
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div>
-                <p className="font-medium text-gray-900">Weekend Specials</p>
-                <p className="text-sm text-gray-600">Weekend promotions and relaxed vibes</p>
-              </div>
-              <Switch 
-                checked={businessData.triggers.timeBased.weekendSpecials}
-                onCheckedChange={(checked) => handleTriggerChange('timeBased', 'weekendSpecials', checked)}
-              />
-            </div>
+            <TriggerCard
+              label="Monday Coffee Motivation"
+              description="Start the week with energizing posts every Monday"
+              checked={businessData.triggers.timeBased.mondayCoffee}
+              onToggle={(checked) => handleTriggerChange('timeBased', 'mondayCoffee', checked)}
+            />
+            <TriggerCard
+              label="Payday Specials"
+              description="Special offers on the last day of each month"
+              checked={businessData.triggers.timeBased.paydaySales}
+              onToggle={(checked) => handleTriggerChange('timeBased', 'paydaySales', checked)}
+            />
+            <TriggerCard
+              label="Weekend Specials"
+              description="Weekend promotions and relaxed vibes"
+              checked={businessData.triggers.timeBased.weekendSpecials}
+              onToggle={(checked) => handleTriggerChange('timeBased', 'weekendSpecials', checked)}
+            />
           </div>
         </div>
 
@@ -429,26 +405,18 @@ const Onboarding = () => {
             <h3 className="text-lg font-semibold text-gray-900">Holiday Celebrations</h3>
           </div>
           <div className="space-y-3 ml-11">
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div>
-                <p className="font-medium text-gray-900">Local Festivals</p>
-                <p className="text-sm text-gray-600">Celebrate local holidays and cultural events</p>
-              </div>
-              <Switch 
-                checked={businessData.triggers.holidays.localFestivals}
-                onCheckedChange={(checked) => handleTriggerChange('holidays', 'localFestivals', checked)}
-              />
-            </div>
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div>
-                <p className="font-medium text-gray-900">International Holidays</p>
-                <p className="text-sm text-gray-600">New Year, Valentine's Day, Christmas, etc.</p>
-              </div>
-              <Switch 
-                checked={businessData.triggers.holidays.internationalHolidays}
-                onCheckedChange={(checked) => handleTriggerChange('holidays', 'internationalHolidays', checked)}
-              />
-            </div>
+            <TriggerCard
+              label="Local Festivals"
+              description="Celebrate local holidays and cultural events"
+              checked={businessData.triggers.holidays.localFestivals}
+              onToggle={(checked) => handleTriggerChange('holidays', 'localFestivals', checked)}
+            />
+            <TriggerCard
+              label="International Holidays"
+              description="New Year, Valentine's Day, Christmas, etc."
+              checked={businessData.triggers.holidays.internationalHolidays}
+              onToggle={(checked) => handleTriggerChange('holidays', 'internationalHolidays', checked)}
+            />
           </div>
         </div>
 
@@ -461,16 +429,12 @@ const Onboarding = () => {
             <h3 className="text-lg font-semibold text-gray-900">Manual Control</h3>
           </div>
           <div className="space-y-3 ml-11">
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div>
-                <p className="font-medium text-gray-900">"Boost Now!" Button</p>
-                <p className="text-sm text-gray-600">Generate instant content when you need a quick boost</p>
-              </div>
-              <Switch 
-                checked={businessData.triggers.manual.boostNow}
-                onCheckedChange={(checked) => handleTriggerChange('manual', 'boostNow', checked)}
-              />
-            </div>
+            <TriggerCard
+              label='"Boost Now!" Button'
+              description="Generate instant content when you need a quick boost"
+              checked={businessData.triggers.manual.boostNow}
+              onToggle={(checked) => handleTriggerChange('manual', 'boostNow', checked)}
+            />
           </div>
         </div>
       </div>
