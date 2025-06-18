@@ -6,11 +6,32 @@ dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table('Businesses')
 
 def lambda_handler(event, context):
+    """
+    Delete a business record with ownership validation.
+    
+    Args:
+        event: Lambda event containing businessID in path parameters and userId in query parameters
+        context: Lambda runtime context
+        
+    Returns:
+        dict: Response confirming deletion or error message
+    """
     try:
         # Get businessID from path parameters
         business_id = event['pathParameters']['businessID']
         
-        # First check if the business exists
+        # Get userId from query parameters for ownership validation
+        query_params = event.get('queryStringParameters') or {}
+        user_id = query_params.get('userId')
+        
+        if not user_id:
+            return {
+                'statusCode': 400,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({'error': 'userId is required in query parameters.'})
+            }
+        
+        # First, get the existing business to validate ownership
         response = table.get_item(
             Key={'businessID': business_id}
         )
@@ -22,15 +43,25 @@ def lambda_handler(event, context):
                 'body': json.dumps({'error': 'Business not found.'})
             }
         
+        existing_business = response['Item']
+        
+        # Validate ownership
+        if existing_business.get('userId') != user_id:
+            return {
+                'statusCode': 403,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({'error': 'Access denied. You can only delete your own businesses.'})
+            }
+        
         # Delete the business
         table.delete_item(
             Key={'businessID': business_id}
         )
         
         return {
-            'statusCode': 204,  # No Content
+            'statusCode': 200,
             'headers': {'Content-Type': 'application/json'},
-            'body': ''
+            'body': json.dumps({'message': 'Business deleted successfully.'})
         }
         
     except KeyError:
@@ -40,7 +71,7 @@ def lambda_handler(event, context):
             'body': json.dumps({'error': 'businessID is required in path parameters.'})
         }
     except Exception as e:
-        print(e)
+        print(f"Error deleting business: {e}")
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json'},

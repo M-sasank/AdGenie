@@ -6,17 +6,60 @@ dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table('Businesses')
 
 def lambda_handler(event, context):
+    """
+    Create a new business record in DynamoDB with social media schema validation.
+    
+    Expected Schema:
+    {
+        "userId": "string (required)",
+        "businessName": "string (required)", 
+        "location": "string (optional)",
+        "businessType": "string (optional)",
+        "brandVoice": "string (optional)",
+        "peakTime": "string (optional)",
+        "products": "string (optional)",
+        "triggers": "object (optional)",
+        "socialMedia": {
+            "instagram": {
+                "connected": "boolean (required)",
+                "tokenID": "string (optional)",
+                "lastConnected": "ISO timestamp (optional)",
+                "username": "string (optional)"
+            }
+        }
+    }
+    
+    Args:
+        event: Lambda event containing the business data in the request body
+        context: Lambda runtime context
+        
+    Returns:
+        dict: Response with businessID on success or error message on failure
+    """
     try:
         data = json.loads(event['body'])
+        
+        # Validate required fields
+        if not data.get('userId'):
+            return {
+                'statusCode': 400,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({'error': 'userId is required.'})
+            }
+        
+        if not data.get('businessName'):
+            return {
+                'statusCode': 400,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({'error': 'businessName is required.'})
+            }
         
         # Generate a unique businessID
         business_id = f"BUS-{uuid.uuid4()}"
         
         item = {
             'businessID': business_id,
-            'businessName': data.get('businessName'),
-            'brandVoice': data.get('brandVoice'),
-            # Add any other attributes from the request body
+            **data  # Store all fields from the request body
         }
         
         table.put_item(Item=item)
@@ -27,8 +70,14 @@ def lambda_handler(event, context):
             'body': json.dumps({'businessID': business_id})
         }
         
+    except json.JSONDecodeError:
+        return {
+            'statusCode': 400,
+            'headers': {'Content-Type': 'application/json'},
+            'body': json.dumps({'error': 'Invalid JSON in request body.'})
+        }
     except Exception as e:
-        print(e)
+        print(f"Error creating business: {e}")
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json'},
