@@ -44,6 +44,32 @@ const Dashboard = () => {
     }
   }, [user, loading, navigate]);
 
+  // Check for Instagram reconnection on component mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const instagramReconnected = urlParams.get('instagram_reconnected');
+    
+    if (instagramReconnected === 'true') {
+      // Check for updated business data from Instagram callback
+      const updatedBusinessData = localStorage.getItem('updated_business_data_edit');
+      if (updatedBusinessData) {
+        try {
+          const parsedData = JSON.parse(updatedBusinessData);
+          setBusinessData(parsedData);
+          localStorage.removeItem('updated_business_data_edit');
+          
+          toast.success('Instagram account reconnected successfully!');
+        } catch (error) {
+          console.error('Error parsing updated business data:', error);
+          toast.error('Error processing Instagram reconnection');
+        }
+      }
+      
+      // Clean up URL
+      window.history.replaceState({}, '', '/dashboard');
+    }
+  }, []);
+
   if (loading || loadingBusiness) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">

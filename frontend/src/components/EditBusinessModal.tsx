@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -6,8 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { businessService } from "@/services/businessService";
 import { toast } from "sonner";
+import { Instagram, CheckCircle, AlertCircle, RefreshCw } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 interface BusinessData {
   businessName: string;
@@ -16,6 +18,14 @@ interface BusinessData {
   brandVoice: string;
   peakTime: string;
   products: string;
+  socialMedia?: {
+    instagram: {
+      connected: boolean;
+      tokenID?: string;
+      lastConnected?: string;
+      username?: string;
+    };
+  };
 }
 
 interface EditBusinessModalProps {
@@ -28,6 +38,8 @@ interface EditBusinessModalProps {
 const EditBusinessModal = ({ open, onOpenChange, businessData, onUpdate }: EditBusinessModalProps) => {
   const [formData, setFormData] = useState<BusinessData>(businessData);
   const [isLoading, setIsLoading] = useState(false);
+  const [isInstagramLoading, setIsInstagramLoading] = useState(false);
+  const { user } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,105 +70,274 @@ const EditBusinessModal = ({ open, onOpenChange, businessData, onUpdate }: EditB
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleInstagramReauth = () => {
+    setIsInstagramLoading(true);
+    
+    try {
+      // Generate state parameter for CSRF protection
+      const state = btoa(JSON.stringify({
+        userId: user?.sub,
+        timestamp: Date.now(),
+        businessData: JSON.stringify(formData),
+        source: 'edit_modal' // Add source to distinguish from onboarding
+      }));
+
+      // Store state in localStorage for validation
+      localStorage.setItem('instagram_oauth_state', state);
+
+      // Construct Instagram OAuth URL
+      const params = new URLSearchParams({
+        client_id: import.meta.env.VITE_INSTAGRAM_CLIENT_ID,
+        redirect_uri: import.meta.env.VITE_INSTAGRAM_REDIRECT_URI,
+        scope: import.meta.env.VITE_INSTAGRAM_SCOPE,
+        response_type: 'code',
+        state: state
+      });
+
+      const oauthUrl = `${import.meta.env.VITE_INSTAGRAM_AUTH_URL}?${params.toString()}`;
+      console.log(oauthUrl);
+      // Close modal before redirecting
+      onOpenChange(false);
+      
+      // Redirect to Instagram OAuth
+      window.location.href = oauthUrl;
+    } catch (error) {
+      console.error('Error initiating Instagram OAuth:', error);
+      toast.error('Failed to initiate Instagram connection');
+      setIsInstagramLoading(false);
+    }
+  };
+
+  const handleInstagramDisconnect = () => {
+    // Update form data to disconnect Instagram
+    setFormData(prev => ({
+      ...prev,
+      socialMedia: {
+        ...prev.socialMedia,
+        instagram: {
+          connected: false,
+          tokenID: undefined,
+          lastConnected: undefined,
+          username: undefined
+        }
+      }
+    }));
+    
+    toast.success('Instagram account disconnected');
+  };
+
+  const isInstagramConnected = formData.socialMedia?.instagram?.connected || false;
+  const instagramUsername = formData.socialMedia?.instagram?.username;
+  const lastConnected = formData.socialMedia?.instagram?.lastConnected;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Business Details</DialogTitle>
           <DialogDescription>
-            Update your business information to improve AI-generated content.
+            Update your business information and social media connections.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="businessName">Business Name</Label>
-            <Input
-              id="businessName"
-              value={formData.businessName}
-              onChange={(e) => handleChange('businessName', e.target.value)}
-              required
-            />
-          </div>
+        
+        <div className="space-y-6">
+          {/* Business Information Form */}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="businessName">Business Name</Label>
+              <Input
+                id="businessName"
+                value={formData.businessName}
+                onChange={(e) => handleChange('businessName', e.target.value)}
+                required
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="location">Location</Label>
-            <Input
-              id="location"
-              value={formData.location}
-              onChange={(e) => handleChange('location', e.target.value)}
-              required
-            />
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="location">Location</Label>
+              <Input
+                id="location"
+                value={formData.location}
+                onChange={(e) => handleChange('location', e.target.value)}
+                required
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="businessType">Business Type</Label>
-            <Select value={formData.businessType} onValueChange={(value) => handleChange('businessType', value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select business type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="restaurant">Restaurant</SelectItem>
-                <SelectItem value="cafe">Cafe</SelectItem>
-                <SelectItem value="retail">Retail Store</SelectItem>
-                <SelectItem value="service">Service Business</SelectItem>
-                <SelectItem value="fitness">Fitness Center</SelectItem>
-                <SelectItem value="beauty">Beauty Salon</SelectItem>
-                <SelectItem value="other">Other</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="businessType">Business Type</Label>
+              <Select value={formData.businessType} onValueChange={(value) => handleChange('businessType', value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select business type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="restaurant">Restaurant</SelectItem>
+                  <SelectItem value="cafe">Cafe</SelectItem>
+                  <SelectItem value="retail">Retail Store</SelectItem>
+                  <SelectItem value="service">Service Business</SelectItem>
+                  <SelectItem value="fitness">Fitness Center</SelectItem>
+                  <SelectItem value="beauty">Beauty Salon</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="brandVoice">Brand Voice</Label>
-            <Select value={formData.brandVoice} onValueChange={(value) => handleChange('brandVoice', value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select brand voice" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="friendly">Friendly</SelectItem>
-                <SelectItem value="professional">Professional</SelectItem>
-                <SelectItem value="casual">Casual</SelectItem>
-                <SelectItem value="energetic">Energetic</SelectItem>
-                <SelectItem value="sophisticated">Sophisticated</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="brandVoice">Brand Voice</Label>
+              <Select value={formData.brandVoice} onValueChange={(value) => handleChange('brandVoice', value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select brand voice" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="friendly">Friendly</SelectItem>
+                  <SelectItem value="professional">Professional</SelectItem>
+                  <SelectItem value="casual">Casual</SelectItem>
+                  <SelectItem value="energetic">Energetic</SelectItem>
+                  <SelectItem value="sophisticated">Sophisticated</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="peakTime">Peak Time</Label>
-            <Select value={formData.peakTime} onValueChange={(value) => handleChange('peakTime', value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select peak time" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="morning">Morning (6AM-12PM)</SelectItem>
-                <SelectItem value="afternoon">Afternoon (12PM-6PM)</SelectItem>
-                <SelectItem value="evening">Evening (6PM-12AM)</SelectItem>
-                <SelectItem value="late-night">Late Night (12AM-6AM)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="peakTime">Peak Time</Label>
+              <Select value={formData.peakTime} onValueChange={(value) => handleChange('peakTime', value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select peak time" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="morning">Morning (6AM-12PM)</SelectItem>
+                  <SelectItem value="afternoon">Afternoon (12PM-6PM)</SelectItem>
+                  <SelectItem value="evening">Evening (6PM-12AM)</SelectItem>
+                  <SelectItem value="late-night">Late Night (12AM-6AM)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="products">Products/Services</Label>
-            <Textarea
-              id="products"
-              value={formData.products}
-              onChange={(e) => handleChange('products', e.target.value)}
-              placeholder="Describe your main products or services..."
-              rows={3}
-            />
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="products">Products/Services</Label>
+              <Textarea
+                id="products"
+                value={formData.products}
+                onChange={(e) => handleChange('products', e.target.value)}
+                placeholder="Describe your main products or services..."
+                rows={3}
+              />
+            </div>
+          </form>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? 'Updating...' : 'Update Details'}
-            </Button>
-          </DialogFooter>
-        </form>
+          {/* Instagram Connection Section */}
+          <Card className="border-gray-200">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center space-x-2 text-base">
+                <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                  <Instagram className="w-4 h-4 text-white" />
+                </div>
+                <span>Instagram Connection</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {isInstagramConnected ? (
+                <div className="space-y-3">
+                  {/* Connected State */}
+                  <div className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-green-800">Instagram Connected</p>
+                      {instagramUsername && (
+                        <p className="text-xs text-green-700">Account: {instagramUsername}</p>
+                      )}
+                      {lastConnected && (
+                        <p className="text-xs text-green-600">
+                          Connected: {new Date(lastConnected).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex space-x-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleInstagramReauth}
+                      disabled={isInstagramLoading}
+                      className="flex-1"
+                    >
+                      {isInstagramLoading ? (
+                        <div className="flex items-center space-x-2">
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span>Connecting...</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center space-x-2">
+                          <RefreshCw className="w-4 h-4" />
+                          <span>Reconnect</span>
+                        </div>
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleInstagramDisconnect}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      Disconnect
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {/* Disconnected State */}
+                  <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <AlertCircle className="w-5 h-5 text-gray-500" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-700">Instagram Not Connected</p>
+                      <p className="text-xs text-gray-600">Connect your Instagram account to enable auto-posting</p>
+                    </div>
+                  </div>
+
+                  {/* Connect Button */}
+                  <Button
+                    type="button"
+                    onClick={handleInstagramReauth}
+                    disabled={isInstagramLoading}
+                    className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white"
+                  >
+                    {isInstagramLoading ? (
+                      <div className="flex items-center space-x-2">
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Connecting...</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2">
+                        <Instagram className="w-4 h-4" />
+                        <span>Connect Instagram</span>
+                      </div>
+                    )}
+                  </Button>
+                </div>
+              )}
+
+              {/* Helper Text */}
+              <p className="text-xs text-gray-500">
+                {isInstagramConnected 
+                  ? "You can reconnect to refresh your token or change to a different Instagram account."
+                  : "Connecting Instagram allows AdGenie to automatically post content to your account."
+                }
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <DialogFooter className="pt-4">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isLoading} onClick={handleSubmit}>
+            {isLoading ? 'Updating...' : 'Update Details'}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

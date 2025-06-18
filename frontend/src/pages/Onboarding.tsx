@@ -37,7 +37,16 @@ interface BusinessData {
       boostNow: boolean;
     };
   };
-  instagramConnected: boolean;
+  socialMedia: {
+    instagram: {
+      connected: boolean;
+      tokenID?: string;        // Reference to future token record
+      lastConnected?: string;  // ISO timestamp
+      username?: string;       // Instagram handle
+    };
+    // Future platforms can be added here
+    // facebook?: { connected: boolean; tokenID?: string; };
+  };
 }
 
 const steps = [
@@ -171,7 +180,11 @@ const Onboarding = () => {
         boostNow: true
       }
     },
-    instagramConnected: false
+    socialMedia: {
+      instagram: {
+        connected: false
+      }
+    }
   });
   const [isAnimating, setIsAnimating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -185,15 +198,62 @@ const Onboarding = () => {
   const isInstagramStep = currentStepData.id === 'instagram';
   const isFormStep = !isWelcomeStep && !isCompleteStep && !isTriggersStep && !isInstagramStep;
 
+  // Check for Instagram connection on component mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const instagramConnected = urlParams.get('instagram_connected');
+    
+    if (instagramConnected === 'true') {
+      // Check for updated business data from Instagram callback
+      const updatedBusinessData = localStorage.getItem('updated_business_data');
+      if (updatedBusinessData) {
+        try {
+          const parsedData = JSON.parse(updatedBusinessData);
+          setBusinessData(parsedData);
+          localStorage.removeItem('updated_business_data');
+          
+          // Navigate to Instagram step to show connected state
+          const instagramStepIndex = steps.findIndex(step => step.id === 'instagram');
+          if (instagramStepIndex !== -1) {
+            setCurrentStep(instagramStepIndex);
+          }
+          
+          toast.success('Instagram connected successfully!');
+        } catch (error) {
+          console.error('Error parsing updated business data:', error);
+          toast.error('Error processing Instagram connection');
+        }
+      }
+      
+      // Clean up URL
+      window.history.replaceState({}, '', '/onboarding');
+    }
+  }, []);
+
   const createBusiness = async (data: BusinessData) => {
     console.log('Creating business with data:', data);
-    await new Promise(resolve => setTimeout(resolve, 2000));
     
-    localStorage.setItem('businessData', JSON.stringify({
-      ...data,
-      userId: user?.sub,
-      createdAt: new Date().toISOString()
-    }));
+    const endpoint = `${import.meta.env.VITE_BACKEND_BASE_URL}/businesses`;
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ...data,
+        userId: user?.sub
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to create business.');
+    }
+
+    const result = await response.json();
+    const { businessID } = result;
+
+    console.log('Business created with ID:', businessID);
     
     return { success: true };
   };
@@ -218,9 +278,29 @@ const Onboarding = () => {
   };
 
   const handleInstagramConnect = () => {
-    // Simulate Instagram connection
-    setBusinessData(prev => ({ ...prev, instagramConnected: true }));
-    toast.success('Instagram connected successfully!');
+    // Generate state parameter for CSRF protection
+    const state = btoa(JSON.stringify({
+      userId: user?.sub,
+      timestamp: Date.now(),
+      businessData: JSON.stringify(businessData)
+    }));
+
+    // Store state in localStorage for validation
+    localStorage.setItem('instagram_oauth_state', state);
+
+    // Construct Instagram OAuth URL
+    const params = new URLSearchParams({
+      client_id: import.meta.env.VITE_INSTAGRAM_CLIENT_ID,
+      redirect_uri: import.meta.env.VITE_INSTAGRAM_REDIRECT_URI,
+      scope: import.meta.env.VITE_INSTAGRAM_SCOPE,
+      response_type: 'code',
+      state: state
+    });
+
+    const oauthUrl = `${import.meta.env.VITE_INSTAGRAM_AUTH_URL}?${params.toString()}`;
+    
+    // Redirect to Instagram OAuth
+    window.location.href = oauthUrl;
   };
 
   const handleNext = async () => {
@@ -246,7 +326,7 @@ const Onboarding = () => {
       }
     }
 
-    if (isInstagramStep && !businessData.instagramConnected) {
+    if (isInstagramStep && !businessData.socialMedia.instagram.connected) {
       toast.error('Please connect your Instagram account to continue');
       return;
     }
@@ -448,7 +528,7 @@ const Onboarding = () => {
           <Instagram className="w-12 h-12 text-white" />
         </div>
         
-        {!businessData.instagramConnected ? (
+        {!businessData.socialMedia.instagram.connected ? (
           <div className="space-y-6">
             <div className="space-y-2">
               <h3 className="text-xl font-semibold text-gray-900">Connect Your Instagram</h3>
