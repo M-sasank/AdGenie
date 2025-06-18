@@ -36,6 +36,12 @@ def lambda_handler(event, context):
     Returns:
         dict: Response with businessID on success or error message on failure
     """
+    cors_headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+        'Access-Control-Allow-Methods': 'POST,OPTIONS'
+    }
+
     try:
         data = json.loads(event['body'])
         
@@ -43,14 +49,14 @@ def lambda_handler(event, context):
         if not data.get('userId'):
             return {
                 'statusCode': 400,
-                'headers': {'Content-Type': 'application/json'},
+                'headers': {**cors_headers, 'Content-Type': 'application/json'},
                 'body': json.dumps({'error': 'userId is required.'})
             }
         
         if not data.get('businessName'):
             return {
                 'statusCode': 400,
-                'headers': {'Content-Type': 'application/json'},
+                'headers': {**cors_headers, 'Content-Type': 'application/json'},
                 'body': json.dumps({'error': 'businessName is required.'})
             }
         
@@ -66,20 +72,20 @@ def lambda_handler(event, context):
         
         return {
             'statusCode': 201, # Created
-            'headers': {'Content-Type': 'application/json'},
+            'headers': {**cors_headers, 'Content-Type': 'application/json'},
             'body': json.dumps({'businessID': business_id})
         }
         
     except json.JSONDecodeError:
         return {
             'statusCode': 400,
-            'headers': {'Content-Type': 'application/json'},
+            'headers': {**cors_headers, 'Content-Type': 'application/json'},
             'body': json.dumps({'error': 'Invalid JSON in request body.'})
         }
     except Exception as e:
         print(f"Error creating business: {e}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json'},
+            'headers': {**cors_headers, 'Content-Type': 'application/json'},
             'body': json.dumps({'error': 'Could not create the business.'})
         } 

@@ -6,16 +6,20 @@ dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table('Businesses')
 
 def lambda_handler(event, context):
-    """
-    Retrieve a specific business by ID with ownership validation.
-    
-    Args:
-        event: Lambda event containing businessID in path parameters and userId in query parameters
-        context: Lambda runtime context
-        
-    Returns:
-        dict: Response with business data or error message
-    """
+    cors_headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+        'Access-Control-Allow-Methods': 'GET,OPTIONS'
+    }
+
+    # Handle preflight OPTIONS request
+    if event.get('httpMethod') == 'OPTIONS':
+        return {
+            'statusCode': 204,
+            'headers': cors_headers,
+            'body': ''
+        }
+
     try:
         # Get businessID from path parameters
         business_id = event['pathParameters']['businessID']
@@ -38,7 +42,7 @@ def lambda_handler(event, context):
         if 'Item' not in response:
             return {
                 'statusCode': 404,
-                'headers': {'Content-Type': 'application/json'},
+                'headers': {**cors_headers, 'Content-Type': 'application/json'},
                 'body': json.dumps({'error': 'Business not found.'})
             }
         
@@ -54,7 +58,7 @@ def lambda_handler(event, context):
         
         return {
             'statusCode': 200,
-            'headers': {'Content-Type': 'application/json'},
+            'headers': {**cors_headers, 'Content-Type': 'application/json'},
             'body': json.dumps(business)
         }
         
@@ -68,6 +72,6 @@ def lambda_handler(event, context):
         print(f"Error retrieving business: {e}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json'},
+            'headers': {**cors_headers, 'Content-Type': 'application/json'},
             'body': json.dumps({'error': 'Could not retrieve the business.'})
         } 

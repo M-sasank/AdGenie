@@ -212,13 +212,13 @@ const Onboarding = () => {
           setBusinessData(parsedData);
           localStorage.removeItem('updated_business_data');
           
-          // Navigate to Instagram step to show connected state
-          const instagramStepIndex = steps.findIndex(step => step.id === 'instagram');
-          if (instagramStepIndex !== -1) {
-            setCurrentStep(instagramStepIndex);
+          // Navigate to the final step to show completion
+          const completeStepIndex = steps.findIndex(step => step.id === 'complete');
+          if (completeStepIndex !== -1) {
+            setCurrentStep(completeStepIndex);
           }
           
-          toast.success('Instagram connected successfully!');
+          toast.success('Instagram connected successfully! Review and complete your setup.');
         } catch (error) {
           console.error('Error parsing updated business data:', error);
           toast.error('Error processing Instagram connection');

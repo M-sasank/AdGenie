@@ -16,6 +16,20 @@ def lambda_handler(event, context):
     Returns:
         dict: Response confirming deletion or error message
     """
+    cors_headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+        'Access-Control-Allow-Methods': 'DELETE,OPTIONS'
+    }
+
+    # Handle preflight OPTIONS request
+    if event.get('httpMethod') == 'OPTIONS':
+        return {
+            'statusCode': 204,
+            'headers': cors_headers,
+            'body': ''
+        }
+        
     try:
         # Get businessID from path parameters
         business_id = event['pathParameters']['businessID']
@@ -60,7 +74,7 @@ def lambda_handler(event, context):
         
         return {
             'statusCode': 200,
-            'headers': {'Content-Type': 'application/json'},
+            'headers': {**cors_headers, 'Content-Type': 'application/json'},
             'body': json.dumps({'message': 'Business deleted successfully.'})
         }
         
@@ -74,6 +88,6 @@ def lambda_handler(event, context):
         print(f"Error deleting business: {e}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json'},
+            'headers': {**cors_headers, 'Content-Type': 'application/json'},
             'body': json.dumps({'error': 'Could not delete the business.'})
         } 

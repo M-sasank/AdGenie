@@ -6,16 +6,20 @@ dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table('Businesses')
 
 def lambda_handler(event, context):
-    """
-    Update a business record with ownership validation.
-    
-    Args:
-        event: Lambda event containing businessID in path parameters and update data in body
-        context: Lambda runtime context
+    cors_headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+        'Access-Control-Allow-Methods': 'PUT,OPTIONS'
+    }
+
+    # Handle preflight OPTIONS request
+    if event.get('httpMethod') == 'OPTIONS':
+        return {
+            'statusCode': 200,
+            'headers': cors_headers,
+            'body': ''
+        }
         
-    Returns:
-        dict: Response with updated business data or error message
-    """
     try:
         # Get businessID from path parameters
         business_id = event['pathParameters']['businessID']
@@ -64,7 +68,7 @@ def lambda_handler(event, context):
         
         return {
             'statusCode': 200,
-            'headers': {'Content-Type': 'application/json'},
+            'headers': {**cors_headers, 'Content-Type': 'application/json'},
             'body': json.dumps(updated_item)
         }
         
@@ -77,13 +81,13 @@ def lambda_handler(event, context):
     except json.JSONDecodeError:
         return {
             'statusCode': 400,
-            'headers': {'Content-Type': 'application/json'},
+            'headers': {**cors_headers, 'Content-Type': 'application/json'},
             'body': json.dumps({'error': 'Invalid JSON in request body.'})
         }
     except Exception as e:
         print(f"Error updating business: {e}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json'},
+            'headers': {**cors_headers, 'Content-Type': 'application/json'},
             'body': json.dumps({'error': 'Could not update the business.'})
         } 

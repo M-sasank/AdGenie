@@ -16,6 +16,20 @@ def lambda_handler(event, context):
     Returns:
         dict: Response with user's businesses or error message
     """
+    cors_headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+        'Access-Control-Allow-Methods': 'GET,OPTIONS'
+    }
+
+    # Handle preflight OPTIONS request
+    if event.get('httpMethod') == 'OPTIONS':
+        return {
+            'statusCode': 204,
+            'headers': cors_headers,
+            'body': ''
+        }
+
     try:
         # Extract userId from query parameters
         query_params = event.get('queryStringParameters') or {}
@@ -51,7 +65,7 @@ def lambda_handler(event, context):
         
         return {
             'statusCode': 200,
-            'headers': {'Content-Type': 'application/json'},
+            'headers': {**cors_headers, 'Content-Type': 'application/json'},
             'body': json.dumps({
                 'businesses': businesses,
                 'count': len(businesses)
@@ -62,6 +76,6 @@ def lambda_handler(event, context):
         print(f"Error retrieving businesses: {e}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json'},
+            'headers': {**cors_headers, 'Content-Type': 'application/json'},
             'body': json.dumps({'error': 'Could not retrieve businesses.'})
         } 
