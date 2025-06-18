@@ -1,3 +1,4 @@
+const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_BASE_URL;
 
 interface BusinessData {
   businessName: string;
@@ -25,96 +26,123 @@ interface BusinessData {
       boostNow: boolean;
     };
   };
-  instagramConnected?: boolean;
+  socialMedia?: {
+    instagram: {
+      connected: boolean;
+      tokenID?: string;
+      lastConnected?: string;
+      username?: string;
+    };
+  };
   userId?: string;
+  businessID?: string;
+  createdAt?: string;
 }
 
 interface BusinessResponse {
   success: boolean;
-  data?: BusinessData & { id: string; createdAt: string };
+  data?: BusinessData;
   error?: string;
 }
 
-// Mock API service - replace with actual backend calls
+// API service connected to the backend
 export const businessService = {
-  async createBusiness(data: BusinessData): Promise<BusinessResponse> {
+  async createBusiness(data: Omit<BusinessData, 'businessID' | 'createdAt'>): Promise<BusinessResponse> {
     try {
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const response = await fetch(`${BACKEND_BASE_URL}/businesses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create business profile');
+      }
       
-      // Mock successful response
-      const businessData = {
-        ...data,
-        id: `business_${Date.now()}`,
-        createdAt: new Date().toISOString()
-      };
+      const responseData = await response.json();
       
-      // Store in localStorage for now
-      localStorage.setItem('businessData', JSON.stringify(businessData));
-      
+      // Return the original data plus the new businessID from the backend
       return {
         success: true,
-        data: businessData
+        data: { ...data, businessID: responseData.businessID },
       };
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Create Business Error:', error);
       return {
         success: false,
-        error: 'Failed to create business profile'
+        error: error.message || 'Failed to create business profile',
       };
     }
   },
 
   async getBusiness(userId: string): Promise<BusinessResponse> {
+    if (!userId) {
+      return { success: false, error: 'User ID is required.' };
+    }
+    
     try {
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 800));
+      const response = await fetch(`${BACKEND_BASE_URL}/businesses?userId=${userId}`);
       
-      // Get from localStorage for now
-      const stored = localStorage.getItem('businessData');
-      if (stored) {
-        const data = JSON.parse(stored);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch business profile');
+      }
+
+      const responseData = await response.json();
+
+      if (responseData.businesses && responseData.businesses.length > 0) {
+        // The backend returns businessID, let's ensure it's mapped correctly.
+        const business = responseData.businesses[0];
         return {
           success: true,
-          data
+          data: business,
+        };
+      } else {
+        // Successfully fetched, but no business found for the user.
+        return {
+          success: true,
+          data: undefined, // Explicitly undefined
         };
       }
-      
+    } catch (error: any) {
+      console.error('Get Business Error:', error);
       return {
         success: false,
-        error: 'No business profile found'
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: 'Failed to fetch business profile'
+        error: error.message || 'Failed to fetch business profile',
       };
     }
   },
 
-  async updateTriggers(userId: string, triggers: BusinessData['triggers']): Promise<BusinessResponse> {
+  // This function still uses mock data. It needs to be updated to use the PUT /businesses/{businessID} endpoint.
+  async updateTriggers(businessID: string, triggers: BusinessData['triggers']): Promise<BusinessResponse> {
     try {
       await new Promise(resolve => setTimeout(resolve, 500));
       
+      console.warn("updateTriggers is using mock data and localStorage.");
       const stored = localStorage.getItem('businessData');
       if (stored) {
         const data = JSON.parse(stored);
-        const updatedData = { ...data, triggers };
-        localStorage.setItem('businessData', JSON.stringify(updatedData));
-        
-        return {
-          success: true,
-          data: updatedData
-        };
+        // This check is flawed because we don't store by businessID in localStorage, but it's a mock.
+        if (data.businessID === businessID) {
+          const updatedData = { ...data, triggers };
+          localStorage.setItem('businessData', JSON.stringify(updatedData));
+          
+          return {
+            success: true,
+            data: updatedData
+          };
+        }
       }
       
       return {
         success: false,
-        error: 'Business profile not found'
+        error: 'Business profile not found for trigger update (mock)'
       };
     } catch (error) {
       return {
         success: false,
-        error: 'Failed to update triggers'
+        error: 'Failed to update triggers (mock)'
       };
     }
   }
