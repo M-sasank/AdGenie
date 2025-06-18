@@ -18,16 +18,17 @@ Parameters:
 Globals:
   Api:
     Cors:
-      AllowMethods: "'POST, GET, PUT, DELETE, OPTIONS'"
+      AllowMethods: "'POST,GET,PUT,DELETE,OPTIONS'"
       AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
       AllowOrigin: "'*'"
+      MaxAge: "'600'"
   Function:
-    Timeout: 10
+    Timeout: 30
     Runtime: python3.11
-    MemorySize: 128
+    MemorySize: 256
     Environment:
       Variables:
-        REGION: !Ref AWS::Region  # Replace PYTHONPATH with something more useful
+        REGION: !Ref AWS::Region
 
 # Rest of your template remains the same
 
