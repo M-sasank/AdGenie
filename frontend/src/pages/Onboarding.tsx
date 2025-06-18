@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TimePicker } from '@/components/ui/time-picker';
 import { toast } from 'sonner';
-import { Bot, MapPin, Clock, Coffee, Shirt, Heart, Sparkles, CheckCircle, Building2, Palette, Package, ArrowRight, ArrowLeft, User, MessageSquare, Zap, Sun, CloudRain, Calendar, DollarSign, PartyPopper, Instagram } from 'lucide-react';
+import { Bot, MapPin, Clock, Coffee, Shirt, Heart, Sparkles, CheckCircle, Building2, Palette, Package, ArrowRight, ArrowLeft, User, MessageSquare, Zap, Sun, CloudRain, Calendar, DollarSign, PartyPopper } from 'lucide-react';
 import { TriggerCard } from '@/components/onboarding/TriggerCard';
 
 interface BusinessData {
@@ -36,16 +36,6 @@ interface BusinessData {
     manual: {
       boostNow: boolean;
     };
-  };
-  socialMedia: {
-    instagram: {
-      connected: boolean;
-      tokenID?: string;        // Reference to future token record
-      lastConnected?: string;  // ISO timestamp
-      username?: string;       // Instagram handle
-    };
-    // Future platforms can be added here
-    // facebook?: { connected: boolean; tokenID?: string; };
   };
 }
 
@@ -135,14 +125,7 @@ const steps = [
     icon: Zap,
     isTriggers: true
   },
-  {
-    id: 'instagram',
-    title: 'Connect Instagram',
-    subtitle: 'Link your Instagram account',
-    description: 'We\'ll need permission to post on your behalf. Your account stays secure and you can revoke access anytime.',
-    icon: Instagram,
-    isInstagram: true
-  },
+
   {
     id: 'complete',
     title: 'Your marketing assistant is ready!',
@@ -179,11 +162,6 @@ const Onboarding = () => {
       manual: {
         boostNow: true
       }
-    },
-    socialMedia: {
-      instagram: {
-        connected: false
-      }
     }
   });
   const [isAnimating, setIsAnimating] = useState(false);
@@ -195,40 +173,10 @@ const Onboarding = () => {
   const isWelcomeStep = currentStepData.id === 'welcome';
   const isCompleteStep = currentStepData.id === 'complete';
   const isTriggersStep = currentStepData.id === 'triggers';
-  const isInstagramStep = currentStepData.id === 'instagram';
-  const isFormStep = !isWelcomeStep && !isCompleteStep && !isTriggersStep && !isInstagramStep;
 
-  // Check for Instagram connection on component mount
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const instagramConnected = urlParams.get('instagram_connected');
-    
-    if (instagramConnected === 'true') {
-      // Check for updated business data from Instagram callback
-      const updatedBusinessData = localStorage.getItem('updated_business_data');
-      if (updatedBusinessData) {
-        try {
-          const parsedData = JSON.parse(updatedBusinessData);
-          setBusinessData(parsedData);
-          localStorage.removeItem('updated_business_data');
-          
-          // Navigate to the final step to show completion
-          const completeStepIndex = steps.findIndex(step => step.id === 'complete');
-          if (completeStepIndex !== -1) {
-            setCurrentStep(completeStepIndex);
-          }
-          
-          toast.success('Instagram connected successfully! Review and complete your setup.');
-        } catch (error) {
-          console.error('Error parsing updated business data:', error);
-          toast.error('Error processing Instagram connection');
-        }
-      }
-      
-      // Clean up URL
-      window.history.replaceState({}, '', '/onboarding');
-    }
-  }, []);
+  const isFormStep = !isWelcomeStep && !isCompleteStep && !isTriggersStep;
+
+
 
   const createBusiness = async (data: BusinessData) => {
     console.log('Creating business with data:', data);
@@ -277,31 +225,7 @@ const Onboarding = () => {
     }));
   };
 
-  const handleInstagramConnect = () => {
-    // Generate state parameter for CSRF protection
-    const state = btoa(JSON.stringify({
-      userId: user?.sub,
-      timestamp: Date.now(),
-      businessData: JSON.stringify(businessData)
-    }));
 
-    // Store state in localStorage for validation
-    localStorage.setItem('instagram_oauth_state', state);
-
-    // Construct Instagram OAuth URL
-    const params = new URLSearchParams({
-      client_id: import.meta.env.VITE_INSTAGRAM_CLIENT_ID,
-      redirect_uri: import.meta.env.VITE_INSTAGRAM_REDIRECT_URI,
-      scope: import.meta.env.VITE_INSTAGRAM_SCOPE,
-      response_type: 'code',
-      state: state
-    });
-
-    const oauthUrl = `${import.meta.env.VITE_INSTAGRAM_AUTH_URL}?${params.toString()}`;
-    
-    // Redirect to Instagram OAuth
-    window.location.href = oauthUrl;
-  };
 
   const handleNext = async () => {
     if (isCompleteStep) {
@@ -309,7 +233,7 @@ const Onboarding = () => {
       try {
         await createBusiness(businessData);
         toast.success('Your marketing assistant is ready!');
-        setTimeout(() => navigate('/dashboard'), 1000);
+        setTimeout(() => navigate('/social-media-connection'), 1000);
       } catch (error) {
         toast.error('Something went wrong. Please try again.');
       } finally {
@@ -326,10 +250,7 @@ const Onboarding = () => {
       }
     }
 
-    if (isInstagramStep && !businessData.socialMedia.instagram.connected) {
-      toast.error('Please connect your Instagram account to continue');
-      return;
-    }
+
 
     setIsAnimating(true);
     setTimeout(() => {
@@ -521,59 +442,7 @@ const Onboarding = () => {
     );
   };
 
-  const renderInstagram = () => {
-    return (
-      <div className="space-y-8 max-w-lg mx-auto text-center">
-        <div className="w-24 h-24 bg-gradient-to-r from-purple-500 to-pink-500 rounded-3xl flex items-center justify-center mx-auto">
-          <Instagram className="w-12 h-12 text-white" />
-        </div>
-        
-        {!businessData.socialMedia.instagram.connected ? (
-          <div className="space-y-6">
-            <div className="space-y-2">
-              <h3 className="text-xl font-semibold text-gray-900">Connect Your Instagram</h3>
-              <p className="text-gray-600">We need permission to post on your behalf. Your account stays secure.</p>
-            </div>
-            
-            <div className="space-y-4 text-left bg-gray-50 p-6 rounded-xl">
-              <h4 className="font-medium text-gray-900">What we'll do:</h4>
-              <ul className="space-y-2 text-sm text-gray-600">
-                <li className="flex items-center space-x-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  <span>Post AI-generated content automatically</span>
-                </li>
-                <li className="flex items-center space-x-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  <span>Schedule posts based on your triggers</span>
-                </li>
-                <li className="flex items-center space-x-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  <span>Use your brand voice and style</span>
-                </li>
-              </ul>
-            </div>
-            
-            <Button 
-              onClick={handleInstagramConnect}
-              className="w-full h-12 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-medium rounded-xl"
-            >
-              Connect Instagram Account
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-              <CheckCircle className="w-8 h-8 text-green-600" />
-            </div>
-            <div className="space-y-2">
-              <h3 className="text-xl font-semibold text-gray-900">Instagram Connected!</h3>
-              <p className="text-gray-600">Your marketing assistant is ready to post automatically.</p>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
+
 
   const IconComponent = currentStepData.icon;
 
@@ -633,12 +502,7 @@ const Onboarding = () => {
               </div>
             )}
 
-            {/* Instagram Connection */}
-            {isInstagramStep && (
-              <div className="space-y-6">
-                {renderInstagram()}
-              </div>
-            )}
+
 
             {/* Navigation */}
             <div className="flex items-center justify-between pt-6">

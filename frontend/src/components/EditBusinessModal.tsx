@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { businessService } from "@/services/businessService";
 import { toast } from "sonner";
-import { Instagram, CheckCircle, AlertCircle, RefreshCw } from "lucide-react";
+import { Instagram, CheckCircle, AlertCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 interface BusinessData {
@@ -39,7 +39,6 @@ interface EditBusinessModalProps {
 const EditBusinessModal = ({ open, onOpenChange, businessData, onUpdate }: EditBusinessModalProps) => {
   const [formData, setFormData] = useState<BusinessData>(businessData);
   const [isLoading, setIsLoading] = useState(false);
-  const [isInstagramLoading, setIsInstagramLoading] = useState(false);
   const { user } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -75,62 +74,6 @@ const EditBusinessModal = ({ open, onOpenChange, businessData, onUpdate }: EditB
 
   const handleChange = (field: keyof BusinessData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleInstagramReauth = () => {
-    setIsInstagramLoading(true);
-    
-    try {
-      // Generate state parameter for CSRF protection
-      const state = btoa(JSON.stringify({
-        userId: user?.sub,
-        timestamp: Date.now(),
-        businessData: JSON.stringify(formData),
-        source: 'edit_modal' // Add source to distinguish from onboarding
-      }));
-
-      // Store state in localStorage for validation
-      localStorage.setItem('instagram_oauth_state', state);
-
-      // Construct Instagram OAuth URL
-      const params = new URLSearchParams({
-        client_id: import.meta.env.VITE_INSTAGRAM_CLIENT_ID,
-        redirect_uri: import.meta.env.VITE_INSTAGRAM_REDIRECT_URI,
-        scope: import.meta.env.VITE_INSTAGRAM_SCOPE,
-        response_type: 'code',
-        state: state
-      });
-
-      const oauthUrl = `${import.meta.env.VITE_INSTAGRAM_AUTH_URL}?${params.toString()}`;
-      console.log(oauthUrl);
-      // Close modal before redirecting
-      onOpenChange(false);
-      
-      // Redirect to Instagram OAuth
-      window.location.href = oauthUrl;
-    } catch (error) {
-      console.error('Error initiating Instagram OAuth:', error);
-      toast.error('Failed to initiate Instagram connection');
-      setIsInstagramLoading(false);
-    }
-  };
-
-  const handleInstagramDisconnect = () => {
-    // Update form data to disconnect Instagram
-    setFormData(prev => ({
-      ...prev,
-      socialMedia: {
-        ...prev.socialMedia,
-        instagram: {
-          connected: false,
-          tokenID: undefined,
-          lastConnected: undefined,
-          username: undefined
-        }
-      }
-    }));
-    
-    toast.success('Instagram account disconnected');
   };
 
   const isInstagramConnected = formData.socialMedia?.instagram?.connected || false;
@@ -259,39 +202,6 @@ const EditBusinessModal = ({ open, onOpenChange, businessData, onUpdate }: EditB
                       )}
                     </div>
                   </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex space-x-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleInstagramReauth}
-                      disabled={isInstagramLoading}
-                      className="flex-1"
-                    >
-                      {isInstagramLoading ? (
-                        <div className="flex items-center space-x-2">
-                          <RefreshCw className="w-4 h-4 animate-spin" />
-                          <span>Connecting...</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center space-x-2">
-                          <RefreshCw className="w-4 h-4" />
-                          <span>Reconnect</span>
-                        </div>
-                      )}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleInstagramDisconnect}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                    >
-                      Disconnect
-                    </Button>
-                  </div>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -300,37 +210,17 @@ const EditBusinessModal = ({ open, onOpenChange, businessData, onUpdate }: EditB
                     <AlertCircle className="w-5 h-5 text-gray-500" />
                     <div className="flex-1">
                       <p className="text-sm font-medium text-gray-700">Instagram Not Connected</p>
-                      <p className="text-xs text-gray-600">Connect your Instagram account to enable auto-posting</p>
+                      <p className="text-xs text-gray-600">Connect your Instagram account during onboarding to enable auto-posting.</p>
                     </div>
                   </div>
-
-                  {/* Connect Button */}
-                  <Button
-                    type="button"
-                    onClick={handleInstagramReauth}
-                    disabled={isInstagramLoading}
-                    className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white"
-                  >
-                    {isInstagramLoading ? (
-                      <div className="flex items-center space-x-2">
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>Connecting...</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center space-x-2">
-                        <Instagram className="w-4 h-4" />
-                        <span>Connect Instagram</span>
-                      </div>
-                    )}
-                  </Button>
                 </div>
               )}
 
               {/* Helper Text */}
               <p className="text-xs text-gray-500">
                 {isInstagramConnected 
-                  ? "You can reconnect to refresh your token or change to a different Instagram account."
-                  : "Connecting Instagram allows AdGenie to automatically post content to your account."
+                  ? "Instagram connection is managed during the onboarding process."
+                  : "You can connect your Instagram account by completing the onboarding flow."
                 }
               </p>
             </CardContent>

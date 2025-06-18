@@ -10,6 +10,7 @@ import "@/lib/cognito"; // Initialize Cognito configuration
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Onboarding from "./pages/Onboarding";
+import SocialMediaConnection from "./pages/SocialMediaConnection";
 import HolidayManager from "./pages/HolidayManager";
 import InstagramCallback from "./pages/InstagramCallback";
 import NotFound from "./pages/NotFound";
@@ -27,6 +28,7 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/onboarding" element={<Onboarding />} />
+              <Route path="/social-media-connection" element={<SocialMediaConnection />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/holidays" element={<HolidayManager />} />
               <Route path="/instagram/callback" element={<InstagramCallback />} />

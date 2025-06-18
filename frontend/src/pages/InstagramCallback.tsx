@@ -13,7 +13,7 @@ interface InstagramCallbackState {
 const InstagramCallback = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [callbackState, setCallbackState] = useState<InstagramCallbackState>({
     status: 'loading',
     message: 'Processing Instagram connection...'
@@ -21,6 +21,21 @@ const InstagramCallback = () => {
 
   useEffect(() => {
     const handleCallback = async () => {
+      // Wait for auth to load
+      if (loading) {
+        return;
+      }
+
+      // Check if user is authenticated
+      if (!user) {
+        setCallbackState({
+          status: 'error',
+          message: 'User not authenticated'
+        });
+        toast.error('Authentication required');
+        setTimeout(() => navigate('/'), 2000);
+        return;
+      }
       // Helper function to get redirect destination based on source
       const getRedirectDestination = (source?: string) => {
         return source === 'edit_modal' ? '/dashboard' : '/onboarding';
@@ -35,7 +50,7 @@ const InstagramCallback = () => {
 
         // Parse state early to determine redirect destination for errors
         let parsedState;
-        let redirectDestination = '/onboarding'; // default fallback
+        let redirectDestination = '/dashboard'; // default fallback
 
         if (state) {
           try {
@@ -81,20 +96,20 @@ const InstagramCallback = () => {
         }
 
         // Parse state to get user information (re-parse if not done earlier)
-        if (!parsedState) {
-          try {
-            parsedState = JSON.parse(atob(state));
-            redirectDestination = getRedirectDestination(parsedState.source);
-          } catch {
-            setCallbackState({
-              status: 'error',
-              message: 'Invalid state format'
-            });
-            toast.error('Invalid callback state');
-            setTimeout(() => navigate(redirectDestination), 3000);
-            return;
-          }
-        }
+        // if (!parsedState) {
+        //   try {
+        //     parsedState = JSON.parse(atob(state));
+        //     redirectDestination = getRedirectDestination(parsedState.source);
+        //   } catch {
+        //     setCallbackState({
+        //       status: 'error',
+        //       message: 'Invalid state format'
+        //     });
+        //     toast.error('Invalid callback state');
+        //     setTimeout(() => navigate(redirectDestination), 3000);
+        //     return;
+        //   }
+        // }
 
         // Validate user matches
         // if (!user || parsedState.userId !== user.sub) {
@@ -126,77 +141,27 @@ const InstagramCallback = () => {
         }
 
         const tokenData = await tokenResponse.json();
-        
-        // Handle different OAuth sources
-        const isFromEditModal = parsedState.source === 'edit_modal';
-        
-        if (isFromEditModal) {
-          // Store Instagram connection data for edit modal to pick up
-          const businessData = JSON.parse(parsedState.businessData);
-          const updatedBusinessData = {
-            ...businessData,
-            socialMedia: {
-              ...businessData.socialMedia,
-              instagram: {
-                connected: true,
-                lastConnected: new Date().toISOString(),
-                tokenID: tokenData.tokenID,
-                username: tokenData.username || '@connected_account'
-              }
-            }
-          };
+        console.log(tokenData);
+        // Clean up OAuth state
+        localStorage.removeItem('instagram_oauth_state');
 
-          localStorage.setItem('updated_business_data_edit', JSON.stringify(updatedBusinessData));
-          localStorage.removeItem('instagram_oauth_state');
+        setCallbackState({
+          status: 'success',
+          message: tokenData.message || 'Instagram connected successfully!'
+        });
 
-          setCallbackState({
-            status: 'success',
-            message: 'Instagram reconnected successfully!'
-          });
+        toast.success('Instagram account connected!');
 
-          toast.success('Instagram account reconnected!');
-
-          // Redirect back to dashboard after short delay
-          setTimeout(() => {
-            navigate('/dashboard?instagram_reconnected=true');
-          }, 2000);
-        } else {
-          // Original onboarding flow
-          const businessData = JSON.parse(parsedState.businessData);
-          const updatedBusinessData = {
-            ...businessData,
-            socialMedia: {
-              ...businessData.socialMedia,
-              instagram: {
-                connected: true,
-                lastConnected: new Date().toISOString(),
-                tokenID: tokenData.tokenID,
-                username: tokenData.username || '@connected_account'
-              }
-            }
-          };
-
-          localStorage.setItem('updated_business_data', JSON.stringify(updatedBusinessData));
-          localStorage.removeItem('instagram_oauth_state');
-
-          setCallbackState({
-            status: 'success',
-            message: 'Instagram connected successfully!'
-          });
-
-          toast.success('Instagram account connected!');
-
-          // Redirect back to onboarding after short delay
-          setTimeout(() => {
-            navigate('/onboarding?instagram_connected=true');
-          }, 2000);
-        }
+        // Redirect to dashboard after short delay
+        setTimeout(() => {
+          navigate('/social-media-connection');
+        }, 1000);
 
       } catch (error: any) {
         console.error('Instagram OAuth callback error:', error);
         
         // Determine redirect destination for catch block
-        let redirectDestination = '/onboarding'; // default fallback
+        let redirectDestination = '/social-media-connection'; // default fallback
         
         try {
           const state = searchParams.get('state');
@@ -213,12 +178,12 @@ const InstagramCallback = () => {
           message: error.message || 'Failed to connect Instagram account'
         });
         toast.error('Instagram connection failed');
-        setTimeout(() => navigate(redirectDestination), 3000);
+        setTimeout(() => navigate(redirectDestination), 2000);
       }
     };
 
     handleCallback();
-  }, [searchParams, navigate, user]);
+  }, [searchParams, navigate, user, loading]);
 
   const getIcon = () => {
     switch (callbackState.status) {
@@ -281,7 +246,7 @@ const InstagramCallback = () => {
           
           {callbackState.status === 'success' && (
             <p className="text-sm text-gray-500">
-              Redirecting you back to complete your setup...
+              Redirecting you to dashboard...
             </p>
           )}
 
