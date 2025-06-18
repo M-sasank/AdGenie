@@ -204,9 +204,5 @@ Resources:
           Properties:
             Path: /oauth/instagram/exchange
             Method: post
-            Cors:
-              AllowMethods: "'POST,OPTIONS'"
-              AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-              AllowOrigin: "'*'"
       Tags:
         auto-delete: no
