@@ -16,6 +16,11 @@ Parameters:
     NoEcho: true
 
 Globals:
+  Api:
+    Cors:
+      AllowMethods: "'POST, GET, PUT, DELETE, OPTIONS'"
+      AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
+      AllowOrigin: "'*'"
   Function:
     Timeout: 10
     Runtime: python3.11
