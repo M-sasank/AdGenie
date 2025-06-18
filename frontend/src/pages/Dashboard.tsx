@@ -51,12 +51,13 @@ const Dashboard = () => {
     
     if (instagramReconnected === 'true') {
       // Check for updated business data from Instagram callback
-      const updatedBusinessData = localStorage.getItem('updated_business_data_edit');
+      const updatedBusinessData = localStorage.getItem('updated_business_dataObject');
       if (updatedBusinessData) {
         try {
           const parsedData = JSON.parse(updatedBusinessData);
           setBusinessData(parsedData);
-          localStorage.removeItem('updated_business_data_edit');
+          localStorage.removeItem('updated_business_dataObject');
+          setIsLearning(false);
           
           toast.success('Instagram account reconnected successfully!');
         } catch (error) {

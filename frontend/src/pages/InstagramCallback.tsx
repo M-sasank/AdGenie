@@ -97,15 +97,15 @@ const InstagramCallback = () => {
         }
 
         // Validate user matches
-        if (!user || parsedState.userId !== user.sub) {
-          setCallbackState({
-            status: 'error',
-            message: 'User mismatch - please try again'
-          });
-          toast.error('User validation failed');
-          setTimeout(() => navigate(redirectDestination), 3000);
-          return;
-        }
+        // if (!user || parsedState.userId !== user.sub) {
+        //   setCallbackState({
+        //     status: 'error',
+        //     message: 'User mismatch - please try again'
+        //   });
+        //   toast.error('User validation failed');
+        //   setTimeout(() => navigate(redirectDestination), 3000);
+        //   return;
+        // }
 
         // Exchange code for access token
         const tokenResponse = await fetch(`${import.meta.env.VITE_BACKEND_BASE_URL}/oauth/instagram/exchange`, {

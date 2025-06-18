@@ -194,11 +194,16 @@ Resources:
       CodeUri: src/oauth_instagram_exchange/
       Handler: app.lambda_handler
       Description: Exchange Instagram OAuth authorization code for access token
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BusinessesTable
       Environment:
         Variables:
           INSTAGRAM_CLIENT_ID: !Ref InstagramClientIdParameter
           INSTAGRAM_CLIENT_SECRET: !Ref InstagramClientSecretParameter
           INSTAGRAM_TOKEN_URL: https://api.instagram.com/oauth/access_token
+          INSTAGRAM_GRAPH_URL: https://graph.instagram.com/me
+          DYNAMODB_TABLE: !Ref BusinessesTable
       Events:
         ApiEvent:
           Type: Api
