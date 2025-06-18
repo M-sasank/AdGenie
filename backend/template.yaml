@@ -5,6 +5,16 @@ Description: >
   The backend for the AdGenie project. This stack includes
   the database, APIs, and business logic for generating and posting social media ads.
 
+Parameters:
+  InstagramClientIdParameter:
+    Type: String
+    Description: Instagram App Client ID for OAuth
+    NoEcho: false
+  InstagramClientSecretParameter:
+    Type: String
+    Description: Instagram App Client Secret for OAuth
+    NoEcho: true
+
 Globals:
   Function:
     Timeout: 10
@@ -169,5 +179,29 @@ Resources:
           Properties:
             Path: /businesses/{businessID}
             Method: delete
+      Tags:
+        auto-delete: no
+
+  OAuthInstagramExchangeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/oauth_instagram_exchange/
+      Handler: app.lambda_handler
+      Description: Exchange Instagram OAuth authorization code for access token
+      Environment:
+        Variables:
+          INSTAGRAM_CLIENT_ID: !Ref InstagramClientIdParameter
+          INSTAGRAM_CLIENT_SECRET: !Ref InstagramClientSecretParameter
+          INSTAGRAM_TOKEN_URL: https://api.instagram.com/oauth/access_token
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /oauth/instagram/exchange
+            Method: post
+            Cors:
+              AllowMethods: "'POST,OPTIONS'"
+              AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              AllowOrigin: "'*'"
       Tags:
         auto-delete: no
