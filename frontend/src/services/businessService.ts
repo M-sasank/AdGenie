@@ -114,6 +114,32 @@ export const businessService = {
     }
   },
 
+  async updateBusiness(businessId: string, userId: string, data: BusinessData): Promise<BusinessResponse> {
+    try {
+      const response = await fetch(`${BACKEND_BASE_URL}/businesses/${businessId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ...data, userId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update business details.');
+      }
+
+      const updatedData = await response.json();
+      return { success: true, data: updatedData };
+    } catch (error: any) {
+      console.error('Update Business Error:', error);
+      return {
+        success: false,
+        error: error.message || 'An unknown error occurred while updating business details.',
+      };
+    }
+  },
+
   // This function still uses mock data. It needs to be updated to use the PUT /businesses/{businessID} endpoint.
   async updateTriggers(businessID: string, triggers: BusinessData['triggers']): Promise<BusinessResponse> {
     try {

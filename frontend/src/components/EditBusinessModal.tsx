@@ -12,6 +12,7 @@ import { Instagram, CheckCircle, AlertCircle, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 interface BusinessData {
+  businessID?: string;
   businessName: string;
   location: string;
   businessType: string;
@@ -45,22 +46,28 @@ const EditBusinessModal = ({ open, onOpenChange, businessData, onUpdate }: EditB
     e.preventDefault();
     setIsLoading(true);
 
+    if (!formData.businessID || !user?.sub) {
+      toast.error("Missing critical information. Cannot update.");
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      // Simulate API call to update business data
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Update localStorage for now
-      const stored = localStorage.getItem('businessData');
-      if (stored) {
-        const data = JSON.parse(stored);
-        const updatedData = { ...data, ...formData };
-        localStorage.setItem('businessData', JSON.stringify(updatedData));
-        onUpdate(formData);
+      const response = await businessService.updateBusiness(
+        formData.businessID,
+        user.sub,
+        formData
+      );
+
+      if (response.success && response.data) {
+        onUpdate(response.data);
         toast.success('Business details updated successfully!');
         onOpenChange(false);
+      } else {
+        throw new Error(response.error || 'Failed to update business details.');
       }
-    } catch (error) {
-      toast.error('Failed to update business details. Please try again.');
+    } catch (error: any) {
+      toast.error(error.message || 'An unknown error occurred.');
     } finally {
       setIsLoading(false);
     }
