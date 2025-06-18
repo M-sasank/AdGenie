@@ -2,12 +2,12 @@ import json
 import boto3
 import requests
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 
 def lambda_handler(event, context):
     """
-    Exchange Instagram OAuth authorization code for access token.
+    Exchange Instagram OAuth authorization code for access token and store long-lived token.
     
     Expected request body:
     {
@@ -21,7 +21,7 @@ def lambda_handler(event, context):
         context: Lambda runtime context
         
     Returns:
-        dict: Response with token information or error message
+        dict: Response with success status and message
     """
     print("Received event:", json.dumps(event))
     
@@ -56,37 +56,37 @@ def lambda_handler(event, context):
             return {
                 'statusCode': 400,
                 'headers': {**cors_headers, 'Content-Type': 'application/json'},
-                'body': json.dumps({'error': 'userId is required.'})
+                'body': json.dumps({'success': False, 'message': 'userId is required.'})
             }
         
         if not auth_code:
             return {
                 'statusCode': 400,
                 'headers': {**cors_headers, 'Content-Type': 'application/json'},
-                'body': json.dumps({'error': 'authorization code is required.'})
+                'body': json.dumps({'success': False, 'message': 'authorization code is required.'})
             }
         
         if not redirect_uri:
             return {
                 'statusCode': 400,
                 'headers': {**cors_headers, 'Content-Type': 'application/json'},
-                'body': json.dumps({'error': 'redirectUri is required.'})
+                'body': json.dumps({'success': False, 'message': 'redirectUri is required.'})
             }
         
         # Get Instagram credentials from environment variables
         client_id = os.environ.get('INSTAGRAM_CLIENT_ID')
         client_secret = os.environ.get('INSTAGRAM_CLIENT_SECRET')
         token_url = os.environ.get('INSTAGRAM_TOKEN_URL', 'https://api.instagram.com/oauth/access_token')
-        graph_url = os.environ.get('INSTAGRAM_GRAPH_URL')
+        dynamodb_table = 'Businesses'
         
         print(f"Using token URL: {token_url}")
         
-        if not all([client_id, client_secret, graph_url]):
-            print("Missing Instagram credentials or graph URL")
+        if not all([client_id, client_secret, dynamodb_table]):
+            print("Missing Instagram credentials or DynamoDB table")
             return {
                 'statusCode': 500,
                 'headers': {**cors_headers, 'Content-Type': 'application/json'},
-                'body': json.dumps({'error': 'Instagram credentials not configured.'})
+                'body': json.dumps({'success': False, 'message': 'Instagram credentials not configured.'})
             }
         
         # Exchange authorization code for access token
@@ -113,8 +113,8 @@ def lambda_handler(event, context):
                 'statusCode': 400,
                 'headers': {**cors_headers, 'Content-Type': 'application/json'},
                 'body': json.dumps({
-                    'error': 'Failed to exchange authorization code for token.',
-                    'details': error_details
+                    'success': False,
+                    'message': 'Failed to exchange authorization code for token.'
                 })
             }
         
@@ -129,95 +129,173 @@ def lambda_handler(event, context):
             return {
                 'statusCode': 400,
                 'headers': {**cors_headers, 'Content-Type': 'application/json'},
-                'body': json.dumps({'error': 'No access token received from Instagram.'})
+                'body': json.dumps({'success': False, 'message': 'No access token received from Instagram.'})
             }
         
-        # Get username from Instagram Graph API
-        username = f"@{instagram_user_id}" # Fallback username
-        if graph_url:
-            try:
-                graph_api_url = f"{graph_url}?fields=username&access_token={access_token}"
-                print(f"Fetching username from {graph_url}")
-                user_profile_response = requests.get(graph_api_url)
-                if user_profile_response.ok:
-                    username = user_profile_response.json().get('username', username)
-                    print(f"Successfully fetched username: {username}")
-                else:
-                    print(f"Failed to fetch username: {user_profile_response.text}")
-            except requests.exceptions.RequestException as e:
-                print(f"Error fetching username: {str(e)}")
-
-        # Generate a unique token ID for future reference
-        token_id = f"IG-TOKEN-{uuid.uuid4()}"
+        # Exchange short-lived token for long-lived token
+        long_lived_token = None
+        long_lived_expires_at = None
+        warning_message = None
         
-        # Prepare data for response and database
-        instagram_data = {
-            'tokenID': token_id,
-            'instagramUserId': str(instagram_user_id) if instagram_user_id else None,
-            'username': username,
-            'connectedAt': datetime.utcnow().isoformat() + 'Z',
-            'connected': True
-        }
-
-        # Save to DynamoDB
         try:
-            dynamodb = boto3.resource('dynamodb')
-            table_name = os.environ.get('DYNAMODB_TABLE')
-            if not table_name:
-                raise ValueError("DYNAMODB_TABLE environment variable not set")
-            table = dynamodb.Table(table_name)
+            long_lived_params = {
+                'grant_type': 'ig_exchange_token',
+                'client_secret': client_secret,
+                'access_token': access_token
+            }
             
-            print(f"Updating DynamoDB for businessID: {user_id}")
-            table.update_item(
-                Key={'businessID': user_id},
-                UpdateExpression="SET instagram = :ig, instagramConnected = :ic",
-                ExpressionAttributeValues={
-                    ':ig': instagram_data,
-                    ':ic': True
-                }
-            )
-            print("Successfully updated DynamoDB")
+            print("Exchanging short-lived token for long-lived token")
+            long_lived_response = requests.get('https://graph.instagram.com/access_token', params=long_lived_params)
+            
+            print(f"Long-lived token response status: {long_lived_response.status_code}")
+            print(f"Long-lived token response: {long_lived_response.text}")
+            
+            if long_lived_response.ok:
+                long_lived_info = long_lived_response.json()
+                long_lived_token = long_lived_info.get('access_token')
+                expires_in = long_lived_info.get('expires_in', 5184000)  # Default 60 days
+                
+                # Calculate expiration timestamp (60 days from now)
+                long_lived_expires_at = (datetime.utcnow() + timedelta(seconds=expires_in)).isoformat() + 'Z'
+                print(f"Long-lived token acquired, expires at: {long_lived_expires_at}")
+            else:
+                print(f"Long-lived token exchange failed: {long_lived_response.text}")
+                warning_message = "Instagram connected with short-lived token. Long-lived token exchange failed."
+                # Set short-lived token expiration (1 hour)
+                long_lived_expires_at = (datetime.utcnow() + timedelta(hours=1)).isoformat() + 'Z'
+                
         except Exception as e:
-            print(f"Error updating DynamoDB: {str(e)}")
+            print(f"Long-lived token exchange error: {str(e)}")
+            warning_message = "Instagram connected with short-lived token. Long-lived token exchange failed."
+            long_lived_expires_at = (datetime.utcnow() + timedelta(hours=1)).isoformat() + 'Z'
+        
+        # Get Instagram username
+        username = None
+        try:
+            # Use long-lived token if available, otherwise short-lived
+            token_for_user_info = long_lived_token if long_lived_token else access_token
+            user_info_response = requests.get(
+                'https://graph.instagram.com/me',
+                params={'access_token': token_for_user_info, 'fields': 'username'}
+            )
+            
+            if user_info_response.ok:
+                user_info = user_info_response.json()
+                username = user_info.get('username', f'user_{instagram_user_id}')
+                print(f"Retrieved username: {username}")
+            else:
+                print(f"Failed to get username: {user_info_response.text}")
+                username = f'user_{instagram_user_id}' if instagram_user_id else 'instagram_user'
+                
+        except Exception as e:
+            print(f"Username retrieval error: {str(e)}")
+            username = f'user_{instagram_user_id}' if instagram_user_id else 'instagram_user'
+        
+        # Initialize DynamoDB
+        dynamodb = boto3.resource('dynamodb')
+        table = dynamodb.Table(dynamodb_table)
+        
+        # Find business record by userId
+        try:
+            # Scan for business with matching userId
+            response = table.scan(
+                FilterExpression='userId = :user_id',
+                ExpressionAttributeValues={':user_id': user_id}
+            )
+            
+            if not response.get('Items'):
+                return {
+                    'statusCode': 404,
+                    'headers': {**cors_headers, 'Content-Type': 'application/json'},
+                    'body': json.dumps({'success': False, 'message': 'No business found for this user.'})
+                }
+            
+            business_item = response['Items'][0]
+            business_id = business_item['businessID']
+            
+            print(f"Found business record: {business_id}")
+            
+        except Exception as e:
+            print(f"Error finding business record: {str(e)}")
             return {
                 'statusCode': 500,
                 'headers': {**cors_headers, 'Content-Type': 'application/json'},
-                'body': json.dumps({'error': 'Failed to save Instagram connection to database.'})
+                'body': json.dumps({'success': False, 'message': 'Failed to find business record.'})
             }
-
-        print(f"Successfully exchanged token for user: {user_id}, Instagram user: {instagram_user_id}")
         
-        response_body = {
-            'message': 'Instagram account connected successfully',
-            'instagram': instagram_data
+        # Prepare token details
+        current_time = datetime.utcnow().isoformat() + 'Z'
+        token_details = {
+            'shortLivedToken': access_token,
+            'longLivedToken': long_lived_token if long_lived_token else access_token,
+            'longLivedExpiresAt': long_lived_expires_at,
+            'instagramUserId': instagram_user_id or '',
+            'scopes': 'instagram_business_basic',  # Default scope
+            'lastRefreshed': current_time
         }
         
-        print(f"Sending response: {json.dumps(response_body)}")
-        
-        return {
-            'statusCode': 200,
-            'headers': {**cors_headers, 'Content-Type': 'application/json'},
-            'body': json.dumps(response_body)
-        }
+        # Update business record with token information
+        try:
+            # Get the existing business item
+            business_response = table.get_item(Key={'businessID': business_id})
+            business_item = business_response['Item']
+            
+            # Update Instagram fields
+            if 'socialMedia' not in business_item:
+                business_item['socialMedia'] = {}
+            if 'instagram' not in business_item['socialMedia']:
+                business_item['socialMedia']['instagram'] = {}
+                
+            business_item['socialMedia']['instagram'].update({
+                'connected': True,
+                'lastConnected': current_time,
+                'username': username,
+                'tokenDetails': token_details
+            })
+            
+            # Save the updated business item
+            table.put_item(Item=business_item)
+            
+            print(f"Successfully updated business record {business_id} with token information")
+            
+            # Return success response
+            success_message = warning_message if warning_message else "Instagram account connected successfully"
+            
+            return {
+                'statusCode': 200,
+                'headers': {**cors_headers, 'Content-Type': 'application/json'},
+                'body': json.dumps({
+                    'success': True,
+                    'message': success_message
+                })
+            }
+            
+        except Exception as e:
+            print(f"Error updating business record: {str(e)}")
+            return {
+                'statusCode': 500,
+                'headers': {**cors_headers, 'Content-Type': 'application/json'},
+                'body': json.dumps({'success': False, 'message': 'Failed to store token information.'})
+            }
         
     except json.JSONDecodeError as e:
         print(f"JSON decode error: {str(e)}")
         return {
             'statusCode': 400,
             'headers': {**cors_headers, 'Content-Type': 'application/json'},
-            'body': json.dumps({'error': 'Invalid JSON in request body.'})
+            'body': json.dumps({'success': False, 'message': 'Invalid JSON in request body.'})
         }
     except requests.exceptions.RequestException as e:
         print(f"Request error during token exchange: {str(e)}")
         return {
             'statusCode': 500,
             'headers': {**cors_headers, 'Content-Type': 'application/json'},
-            'body': json.dumps({'error': 'Network error during token exchange.'})
+            'body': json.dumps({'success': False, 'message': 'Network error during token exchange.'})
         }
     except Exception as e:
         print(f"Unexpected error: {str(e)}")
         return {
             'statusCode': 500,
             'headers': {**cors_headers, 'Content-Type': 'application/json'},
-            'body': json.dumps({'error': 'Could not exchange authorization code.'})
+            'body': json.dumps({'success': False, 'message': 'Could not exchange authorization code.'})
         } 

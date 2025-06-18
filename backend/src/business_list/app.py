@@ -1,9 +1,19 @@
 import json
 import boto3
 from botocore.exceptions import ClientError
+from decimal import Decimal
 
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table('Businesses')
+
+def decimal_converter(obj):
+    """Convert Decimal types to int or float for JSON serialization"""
+    if isinstance(obj, Decimal):
+        if obj % 1 == 0:
+            return int(obj)
+        else:
+            return float(obj)
+    raise TypeError
 
 def lambda_handler(event, context):
     """
@@ -38,7 +48,7 @@ def lambda_handler(event, context):
         if not user_id:
             return {
                 'statusCode': 400,
-                'headers': {'Content-Type': 'application/json'},
+                'headers': {**cors_headers, 'Content-Type': 'application/json'},
                 'body': json.dumps({'error': 'userId is required in query parameters.'})
             }
         
@@ -69,7 +79,7 @@ def lambda_handler(event, context):
             'body': json.dumps({
                 'businesses': businesses,
                 'count': len(businesses)
-            })
+            }, default=decimal_converter)
         }
         
     except Exception as e:
