@@ -17,7 +17,7 @@ Parameters:
   PublicS3BucketName:
     Type: String
     Description: Name of the public S3 bucket for generated images
-    Default: adgenie-public-bucket-demo
+    Default: bedrock2posts
 
 Globals:
   Api:
