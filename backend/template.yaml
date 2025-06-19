@@ -248,11 +248,15 @@ Resources:
       Tags:
         auto-delete: no
 
-  PublicS3Bucket:
+  PrivateS3Bucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Ref PublicS3BucketName
-      AccessControl: PublicRead
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
       CorsConfiguration:
         CorsRules:
           - AllowedOrigins:
@@ -264,3 +268,10 @@ Resources:
               - HEAD
             AllowedHeaders:
               - '*'
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
