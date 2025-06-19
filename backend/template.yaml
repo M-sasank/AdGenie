@@ -14,6 +14,10 @@ Parameters:
     Type: String
     Description: Instagram App Client Secret for OAuth
     NoEcho: true
+  PublicS3BucketName:
+    Type: String
+    Description: Name of the public S3 bucket for generated images
+    Default: adgenie-public-bucket-demo
 
 Globals:
   Api:
@@ -211,3 +215,46 @@ Resources:
             Method: post
       Tags:
         auto-delete: no
+
+  BedrockGenerateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/bedrock_generate/
+      Handler: app.lambda_handler
+      Runtime: python3.11
+      Timeout: 60
+      MemorySize: 512
+      Description: Generate image and text using Bedrock, upload image to S3, and return public URL and caption.
+      Environment:
+        Variables:
+          PUBLIC_BUCKET_NAME: !Ref PublicS3BucketName
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:GetObject
+              Resource: !Sub arn:aws:s3:::${PublicS3BucketName}/*
+      Tags:
+        auto-delete: no
+
+  PublicS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref PublicS3BucketName
+      AccessControl: PublicRead
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins:
+              - '*'
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+              - HEAD
+            AllowedHeaders:
+              - '*'
