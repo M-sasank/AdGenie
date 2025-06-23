@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Bot, Instagram, Zap, Calendar, TrendingUp, Coffee, Sun, Snowflake, Cloud, MapPin, Clock, Sparkles, Target, Wifi, Database, Cog, Brain, Cpu, PartyPopper, ArrowRight, CheckCircle, AlertCircle, Play, Settings, Bell, Activity, Users, Heart, MessageCircle, Share2, BarChart3, Lightbulb, Edit } from "lucide-react";
+import { Bot, Instagram, Zap, Calendar, TrendingUp, Coffee, Sun, Cloud, Clock, Sparkles, PartyPopper, ArrowRight, CheckCircle, Play, Activity, Users, Heart, MessageCircle, Share2, BarChart3, Lightbulb, Edit } from "lucide-react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { businessService } from "@/services/businessService";
@@ -14,10 +14,14 @@ const Dashboard = () => {
   const { user, loading, signOut } = useAuth();
   const [businessData, setBusinessData] = useState(null);
   const [loadingBusiness, setLoadingBusiness] = useState(true);
-  const [isLearning, setIsLearning] = useState(true);
   const [isGeneratingBoost, setIsGeneratingBoost] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const navigate = useNavigate();
+
+  // Helper function to check Instagram connection status
+  const isInstagramConnected = (businessData: any) => {
+    return businessData?.socialMedia?.instagram?.connected === true;
+  };
 
   useEffect(() => {
     const checkBusinessProfile = async () => {
@@ -25,15 +29,25 @@ const Dashboard = () => {
         try {
           const response = await businessService.getBusiness(user.sub);
           if (response.success && response.data) {
-            setBusinessData(response.data);
-            setIsLearning(false);
+            // Business profile exists, now check Instagram connection
+            if (isInstagramConnected(response.data)) {
+              // Both business and Instagram are set up - show Dashboard
+              setBusinessData(response.data);
+            } else {
+              // Business exists but Instagram not connected - redirect to social media connection
+              navigate('/social-media-connection');
+              return;
+            }
           } else {
-            // Business profile doesn't exist, show learning state
-            setIsLearning(true);
+            // Business profile doesn't exist - redirect to onboarding
+            navigate('/onboarding');
+            return;
           }
         } catch (error) {
           console.error('Error checking business profile:', error);
-          setIsLearning(true);
+          // On error, redirect to onboarding to be safe
+          navigate('/onboarding');
+          return;
         }
       }
       setLoadingBusiness(false);
@@ -57,7 +71,6 @@ const Dashboard = () => {
           const parsedData = JSON.parse(updatedBusinessData);
           setBusinessData(parsedData);
           localStorage.removeItem('updated_business_dataObject');
-          setIsLearning(false);
           
           toast.success('Instagram account reconnected successfully!');
         } catch (error) {
@@ -88,10 +101,6 @@ const Dashboard = () => {
 
   const handleSignOut = async () => {
     await signOut();
-  };
-
-  const handleContinueSetup = () => {
-    navigate('/onboarding');
   };
 
   const handleBoostNow = async () => {
@@ -146,100 +155,6 @@ const Dashboard = () => {
   const handleBusinessUpdate = (updatedData: any) => {
     setBusinessData(prev => ({ ...prev, ...updatedData }));
   };
-
-  // Learning/Setup State
-  if (isLearning) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        {/* Clean Header */}
-        <header className="border-b border-gray-200 bg-white/80 backdrop-blur-xl">
-          <div className="container mx-auto px-6 py-4 flex justify-between items-center">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center">
-                <Bot className="h-4 w-4 text-white" />
-              </div>
-              <h1 className="text-lg font-semibold text-gray-900 tracking-tight">AdGenie</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600 font-medium">
-                {user.firstName || user.email}
-              </span>
-              <Button variant="outline" onClick={handleSignOut} className="border-gray-300 text-gray-700 hover:bg-gray-50">
-                Sign Out
-              </Button>
-            </div>
-          </div>
-        </header>
-
-        <div className="container mx-auto px-6 py-16">
-          {/* Minimalist AI Learning State */}
-          <div className="max-w-2xl mx-auto text-center space-y-12">
-            <div className="space-y-6">
-              <div className="inline-flex items-center justify-center w-20 h-20 bg-gray-900 rounded-2xl mb-6">
-                <Brain className="w-10 h-10 text-white" />
-              </div>
-              
-              <h1 className="text-4xl font-bold text-gray-900 tracking-tight leading-tight">
-                Setting up your AI marketing assistant
-              </h1>
-              
-              <p className="text-xl text-gray-600 leading-relaxed max-w-lg mx-auto">
-                While you complete your setup, we're preparing intelligent marketing strategies tailored to your business.
-              </p>
-            </div>
-
-            {/* Clean Progress Indicators */}
-            <div className="space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div className="text-center">
-                  <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mx-auto mb-4">
-                    <Database className="w-6 h-6 text-blue-600" />
-                  </div>
-                  <h3 className="font-semibold text-gray-900 mb-2">Analyzing Data</h3>
-                  <p className="text-sm text-gray-600">Learning your industry patterns</p>
-                </div>
-                
-                <div className="text-center">
-                  <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mx-auto mb-4">
-                    <Cog className="w-6 h-6 text-green-600" />
-                  </div>
-                  <h3 className="font-semibold text-gray-900 mb-2">Configuring System</h3>
-                  <p className="text-sm text-gray-600">Setting up automation triggers</p>
-                </div>
-                
-                <div className="text-center">
-                  <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mx-auto mb-4">
-                    <Sparkles className="w-6 h-6 text-purple-600" />
-                  </div>
-                  <h3 className="font-semibold text-gray-900 mb-2">Preparing Content</h3>
-                  <p className="text-sm text-gray-600">Crafting personalized messages</p>
-                </div>
-              </div>
-
-              {/* Minimal Progress Bar */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse"></div>
-                  <span>Processing</span>
-                </div>
-                <div className="w-64 h-1 bg-gray-200 rounded-full mx-auto overflow-hidden">
-                  <div className="h-full bg-gray-900 rounded-full transition-all duration-1000 ease-out" style={{ width: '65%' }}></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Clean CTA */}
-            <Button 
-              onClick={handleContinueSetup}
-              className="h-12 px-8 bg-gray-900 hover:bg-gray-800 text-white font-medium rounded-xl transition-all duration-200"
-            >
-              Continue Setup
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // Active Dashboard State
   return (

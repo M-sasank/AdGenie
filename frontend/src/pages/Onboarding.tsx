@@ -10,6 +10,7 @@ import { TimePicker } from '@/components/ui/time-picker';
 import { toast } from 'sonner';
 import { Bot, MapPin, Clock, Coffee, Shirt, Heart, Sparkles, CheckCircle, Building2, Palette, Package, ArrowRight, ArrowLeft, User, MessageSquare, Zap, Sun, CloudRain, Calendar, DollarSign, PartyPopper } from 'lucide-react';
 import { TriggerCard } from '@/components/onboarding/TriggerCard';
+import { businessService } from '@/services/businessService';
 
 interface BusinessData {
   businessName: string;
@@ -166,8 +167,51 @@ const Onboarding = () => {
   });
   const [isAnimating, setIsAnimating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [checkingBusiness, setCheckingBusiness] = useState(true);
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  // Helper function to check Instagram connection status
+  const isInstagramConnected = (businessData: any) => {
+    return businessData?.socialMedia?.instagram?.connected === true;
+  };
+
+  // Check if user already has a business profile
+  useEffect(() => {
+    const checkExistingBusiness = async () => {
+      if (loading) return; // Wait for auth to load
+      
+      if (!user) {
+        // User not authenticated, redirect to home
+        navigate('/');
+        return;
+      }
+
+      try {
+        const response = await businessService.getBusiness(user.sub);
+        if (response.success && response.data) {
+          // Business profile exists, check Instagram connection and redirect accordingly
+          if (isInstagramConnected(response.data)) {
+            // Both business and Instagram are set up - redirect to dashboard
+            navigate('/dashboard');
+          } else {
+            // Business exists but Instagram not connected - redirect to social media connection
+            navigate('/social-media-connection');
+          }
+          return;
+        } else {
+          // No business profile exists - allow onboarding to proceed
+          setCheckingBusiness(false);
+        }
+      } catch (error) {
+        console.error('Error checking existing business:', error);
+        // On error, allow onboarding to proceed (safer fallback)
+        setCheckingBusiness(false);
+      }
+    };
+
+    checkExistingBusiness();
+  }, [user, loading, navigate]);
 
   const currentStepData = steps[currentStep];
   const isWelcomeStep = currentStepData.id === 'welcome';
@@ -277,6 +321,23 @@ const Onboarding = () => {
     }
     return '';
   };
+
+  // Show loading state while checking business profile
+  if (loading || checkingBusiness) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <Card className="w-full max-w-md shadow-sm border-gray-200 bg-white">
+          <CardContent className="p-8 text-center space-y-6">
+            <div className="w-12 h-12 border-2 border-gray-300 border-t-gray-900 rounded-full animate-spin mx-auto"></div>
+            <div className="space-y-2">
+              <h2 className="text-xl font-semibold text-gray-900">Checking Your Profile</h2>
+              <p className="text-gray-600">Verifying your account status...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const renderInput = () => {
     // Special handling for peak time step to use TimePicker with range
