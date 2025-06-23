@@ -5,6 +5,10 @@ import json
 import os
 from decimal import Decimal
 
+# Initialize clients
+sqs_client = boto3.client('sqs')
+AD_CONTENT_QUEUE_URL = os.environ.get('AD_CONTENT_QUEUE_URL')
+
 def decimal_converter(obj):
     """Convert Decimal types to int or float for JSON serialization
     
@@ -21,7 +25,15 @@ def decimal_converter(obj):
     raise TypeError
 
 def lambda_handler(event, context):
-    """Generate image and text using Amazon Bedrock models and upload to S3"""
+    """Generate image and text using Amazon Bedrock models, upload to S3, and send to SQS queue
+    
+    :param event: Lambda event containing businessID in request body
+    :type event: dict
+    :param context: Lambda runtime context
+    :type context: LambdaContext
+    :return: HTTP response with S3 URL, caption, and queue status
+    :rtype: dict
+    """
     cors_headers = {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
@@ -37,6 +49,17 @@ def lambda_handler(event, context):
         }
 
     try:
+        # Parse request body to get businessID
+        body = json.loads(event.get('body', '{}'))
+        business_id = body.get('businessID')
+        
+        if not business_id:
+            return {
+                'statusCode': 400,
+                'headers': {**cors_headers, 'Content-Type': 'application/json'},
+                'body': json.dumps({'error': 'businessID is required.'})
+            }
+
         bedrock = boto3.client('bedrock-runtime')
         s3 = boto3.client('s3')
         BUCKET_NAME = os.environ.get('PUBLIC_BUCKET_NAME')
@@ -107,15 +130,36 @@ def lambda_handler(event, context):
         
         s3_url = f"https://{BUCKET_NAME}.s3.amazonaws.com/{image_key}"
 
+        # 4. Send message to SQS queue for Instagram posting
+        print(f"Sending content to queue: {AD_CONTENT_QUEUE_URL}")
+        
+        message_body = {
+            'caption': caption,
+            'image_url': s3_url,
+            'businessID': business_id
+        }
+        
+        sqs_client.send_message(
+            QueueUrl=AD_CONTENT_QUEUE_URL,
+            MessageBody=json.dumps(message_body)
+        )
+
         return {
             'statusCode': 200,
             'headers': {**cors_headers, 'Content-Type': 'application/json'},
             'body': json.dumps({
                 "s3_public_url": s3_url,
-                "caption_generated": caption
+                "caption_generated": caption,
+                "message": "Content generated and queued for Instagram posting"
             }, default=decimal_converter)
         }
 
+    except json.JSONDecodeError:
+        return {
+            'statusCode': 400,
+            'headers': {**cors_headers, 'Content-Type': 'application/json'},
+            'body': json.dumps({'error': 'Invalid JSON in request body.'})
+        }
     except Exception as e:
         print(f"Error in bedrock_generate: {e}")
         return {
