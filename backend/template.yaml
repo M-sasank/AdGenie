@@ -17,7 +17,7 @@ Parameters:
   PublicS3BucketName:
     Type: String
     Description: Name of the public S3 bucket for generated images
-    Default: bedrock2posts
+    Default: "adgenie-generated-images"
 
 Globals:
   Api:
@@ -93,6 +93,9 @@ Resources:
       CodeUri: src/post_to_instagram/
       Handler: app.lambda_handler
       Description: Post generated content to Instagram
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BusinessesTable
       Events:
         QueueEvent:
           Type: SQS
@@ -224,10 +227,11 @@ Resources:
       Runtime: python3.11
       Timeout: 60
       MemorySize: 512
-      Description: Generate image and text using Bedrock, upload image to S3, and return public URL and caption.
+      Description: Generate image and text using Bedrock, upload image to S3, and send to SQS queue for Instagram posting.
       Environment:
         Variables:
-          PUBLIC_BUCKET_NAME: !Ref PublicS3BucketName
+          PUBLIC_BUCKET_NAME: !Ref PrivateS3Bucket
+          AD_CONTENT_QUEUE_URL: !Ref AdContentQueue
       Policies:
         - Statement:
             - Effect: Allow
@@ -238,7 +242,9 @@ Resources:
               Action:
                 - s3:PutObject
                 - s3:GetObject
-              Resource: !Sub arn:aws:s3:::${PublicS3BucketName}/*
+              Resource: !Sub "arn:aws:s3:::${PrivateS3Bucket}/*"
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt AdContentQueue.QueueName
       Events:
         ApiEvent:
           Type: Api
@@ -251,7 +257,7 @@ Resources:
   PrivateS3Bucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Ref PublicS3BucketName
+      BucketName: !Sub "${PublicS3BucketName}-${AWS::AccountId}-${AWS::Region}"
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
