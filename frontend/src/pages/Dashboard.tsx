@@ -95,13 +95,44 @@ const Dashboard = () => {
   };
 
   const handleBoostNow = async () => {
+    if (!businessData?.businessID) {
+      toast.error('Business profile not found. Please complete your setup first.');
+      return;
+    }
+
     setIsGeneratingBoost(true);
     try {
-      // Simulate AI content generation
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      toast.success('New boost post generated and scheduled!');
-    } catch (error) {
-      toast.error('Failed to generate boost post. Please try again.');
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_BASE_URL}/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          businessID: businessData.businessID
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      toast.success(
+        <div>
+          <div className="font-medium">Content Generated Successfully!</div>
+          <div className="text-sm text-gray-600 mt-1">
+            Your post has been queued for Instagram and will be published shortly.
+          </div>
+        </div>
+      );
+      
+    } catch (error: any) {
+      console.error('Boost generation error:', error);
+      toast.error(
+        error.message || 'Failed to generate boost post. Please try again.'
+      );
     } finally {
       setIsGeneratingBoost(false);
     }
@@ -255,7 +286,7 @@ const Dashboard = () => {
                 {isGeneratingBoost ? (
                   <div className="flex items-center space-x-2">
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>Generating...</span>
+                    <span>Generating Content...</span>
                   </div>
                 ) : (
                   <div className="flex items-center space-x-2">
