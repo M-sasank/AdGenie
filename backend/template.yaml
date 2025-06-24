@@ -233,6 +233,8 @@ Resources:
           PUBLIC_BUCKET_NAME: !Ref PrivateS3Bucket
           AD_CONTENT_QUEUE_URL: !Ref AdContentQueue
       Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref BusinessesTable
         - Statement:
             - Effect: Allow
               Action:
