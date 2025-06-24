@@ -2,6 +2,7 @@ import json
 import uuid
 import boto3
 import logging
+from decimal import Decimal
 
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table('Businesses')
@@ -72,6 +73,12 @@ def lambda_handler(event, context):
         
         # Generate a unique businessID
         business_id = f"BUS-{uuid.uuid4()}"
+        
+        # Convert numeric coordinates to Decimal if present
+        if isinstance(data.get('latitude'), float):
+            data['latitude'] = Decimal(str(data['latitude']))
+        if isinstance(data.get('longitude'), float):
+            data['longitude'] = Decimal(str(data['longitude']))
         
         item = {
             'businessID': business_id,

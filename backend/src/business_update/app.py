@@ -77,6 +77,12 @@ def lambda_handler(event, context):
         merged_item['weatherTriggerEnabledFlag'] = 'Y' if any(weather_triggers.values()) else 'N'
         logger.info("[BUSINESS_UPDATE] Weather flag set to %s for %s", merged_item['weatherTriggerEnabledFlag'], business_id)
         
+        # Ensure coordinates are Decimal for DynamoDB
+        if isinstance(merged_item.get('latitude'), float):
+            merged_item['latitude'] = Decimal(str(merged_item['latitude']))
+        if isinstance(merged_item.get('longitude'), float):
+            merged_item['longitude'] = Decimal(str(merged_item['longitude']))
+        
         table.put_item(Item=merged_item)
         logger.info("[BUSINESS_UPDATE] Updated business %s", business_id)
         
