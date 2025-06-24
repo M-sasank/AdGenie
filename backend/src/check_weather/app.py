@@ -55,6 +55,7 @@ def _get_coordinates(city_name: str) -> Dict[str, float]:
     if not data.get("results"):
         raise RuntimeError("No geocoding results")
     result = data["results"][0]
+    logger.info("[CHECK_WEATHER] Geocoding results: %s", result)
     return {"latitude": float(result["latitude"]), "longitude": float(result["longitude"])}
 
 
@@ -76,9 +77,11 @@ def _get_7day_avg_temp(lat: float, lon: float, now_utc: datetime) -> float:
     resp.raise_for_status()
     data = resp.json()
     temps: List[float] = data.get("daily", {}).get("temperature_2m_mean", [])
-    if not temps:
+    temps_clean = [t for t in temps if t is not None]
+    if not temps_clean:
         raise RuntimeError("Archive data missing")
-    return sum(temps) / len(temps)
+    logger.info("[CHECK_WEATHER] 7-day average temperature: %s", temps_clean)
+    return sum(temps_clean) / len(temps_clean)
 
 
 def _get_next12h_forecast(lat: float, lon: float, now_utc: datetime) -> Dict[str, List[float]]:
@@ -100,9 +103,12 @@ def _get_next12h_forecast(lat: float, lon: float, now_utc: datetime) -> Dict[str
     forecast: Dict[str, List[float]] = {"temperature": [], "precipitation": []}
     for idx, ts in enumerate(hours):
         ts_dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        if ts_dt.tzinfo is None:
+            ts_dt = ts_dt.replace(tzinfo=timezone.utc)
         if 0 <= (ts_dt - now_utc).total_seconds() <= 12 * 3600:
             forecast["temperature"].append(float(temps[idx]))
             forecast["precipitation"].append(float(prec[idx]))
+    logger.info("[CHECK_WEATHER] Next 12-hour forecast: %s", forecast)
     return forecast
 
 
@@ -120,6 +126,12 @@ def _detect_triggers(forecast: Dict[str, List[float]], avg_temp: float) -> Dict[
         elif seen_rain and p == 0:
             sun_after_rain = True
             break
+    logger.info("[CHECK_WEATHER] Trigger results: %s", {
+        "coldWeather": cold,
+        "hotWeather": hot,
+        "rain": rainy,
+        "sunAfterRain": sun_after_rain,
+    })
     return {
         "coldWeather": cold,
         "hotWeather": hot,
@@ -147,29 +159,38 @@ def lambda_handler(event: Dict[str, Any], context):
     now_utc = datetime.now(timezone.utc)
 
     # 1. Scan all businesses (projection narrow)
-    projection = "businessID, location, latitude, longitude, triggers"
-    response = BUSINESSES_TABLE.scan(ProjectionExpression=projection)
+    projection = "businessID, #loc, latitude, longitude, triggers"
+    expr_attr_names = {"#loc": "location"}
+    response = BUSINESSES_TABLE.scan(ProjectionExpression=projection, ExpressionAttributeNames=expr_attr_names)
     items = response.get("Items", [])
 
     while "LastEvaluatedKey" in response:
         response = BUSINESSES_TABLE.scan(
-            ProjectionExpression=projection, ExclusiveStartKey=response["LastEvaluatedKey"]
+            ProjectionExpression=projection,
+            ExpressionAttributeNames=expr_attr_names,
+            ExclusiveStartKey=response["LastEvaluatedKey"],
         )
         items.extend(response.get("Items", []))
 
     for item in items:
+        business_id = item["businessID"]
         triggers_cfg = (
             item.get("triggers", {}).get("weather", {}) if isinstance(item.get("triggers"), dict) else {}
         )
         if not any(triggers_cfg.values()):
             continue  # Weather triggers not enabled
 
-        business_id = item["businessID"]
-        city_name = item.get("location") or ""
+        logger.info("[CHECK_WEATHER] Weather triggers enabled for business %s", business_id)
 
+        city_name = item.get("location") or ""
+    
         # Ensure coordinates
         lat = item.get("latitude")
         lon = item.get("longitude")
+        if isinstance(lat, Decimal):
+            lat = float(lat)
+        if isinstance(lon, Decimal):
+            lon = float(lon)
         if lat is None or lon is None:
             try:
                 coords = _get_coordinates(city_name)
