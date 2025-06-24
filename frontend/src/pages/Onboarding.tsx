@@ -11,10 +11,13 @@ import { toast } from 'sonner';
 import { Bot, MapPin, Clock, Coffee, Shirt, Heart, Sparkles, CheckCircle, Building2, Palette, Package, ArrowRight, ArrowLeft, User, MessageSquare, Zap, Sun, CloudRain, Calendar, DollarSign, PartyPopper } from 'lucide-react';
 import { TriggerCard } from '@/components/onboarding/TriggerCard';
 import { businessService } from '@/services/businessService';
+import LocationAutocomplete, { LocationData } from '@/components/LocationAutocomplete';
 
 interface BusinessData {
   businessName: string;
   location: string;
+  latitude: number | null;
+  longitude: number | null;
   businessType: string;
   brandVoice: string;
   peakTime: string;
@@ -141,6 +144,8 @@ const Onboarding = () => {
   const [businessData, setBusinessData] = useState<BusinessData>({
     businessName: '',
     location: '',
+    latitude: null,
+    longitude: null,
     businessType: '',
     brandVoice: '',
     peakTime: '',
@@ -256,6 +261,15 @@ const Onboarding = () => {
     }
   };
 
+  const handleLocationSelect = (loc: LocationData) => {
+    setBusinessData(prev => ({
+      ...prev,
+      location: loc.formatted_address,
+      latitude: loc.latitude,
+      longitude: loc.longitude,
+    }));
+  };
+
   const handleTriggerChange = (category: string, trigger: string, value: boolean) => {
     setBusinessData(prev => ({
       ...prev,
@@ -288,7 +302,7 @@ const Onboarding = () => {
 
     if (isFormStep && currentStepData.field) {
       const value = businessData[currentStepData.field];
-      if (!value) {
+      if (!value || (currentStepData.id === 'location' && (businessData.latitude === null || businessData.longitude === null))) {
         toast.error('Please fill in this field to continue');
         return;
       }
@@ -349,6 +363,17 @@ const Onboarding = () => {
           onChange={(time) => handleInputChange(time)}
           className="max-w-md mx-auto"
           isRange={true}
+        />
+      );
+    }
+
+    // Use Geoapify autocomplete for location step
+    if (currentStepData.id === 'location') {
+      return (
+        <LocationAutocomplete
+          value={businessData.location}
+          onSelect={handleLocationSelect}
+          placeholder={currentStepData.placeholder}
         />
       );
     }

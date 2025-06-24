@@ -3,6 +3,8 @@ const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_BASE_URL;
 interface BusinessData {
   businessName: string;
   location: string;
+  latitude?: number | null;
+  longitude?: number | null;
   businessType: string;
   brandVoice: string;
   peakTime: string;
