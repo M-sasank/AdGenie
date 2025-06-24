@@ -294,3 +294,54 @@ Resources:
             Action: "s3:GetObject"
             Resource: !Sub "${PrivateS3Bucket.Arn}/*"
 
+  # Weather Checker Function
+  CheckWeatherFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/check_weather/
+      Handler: app.lambda_handler
+      Runtime: python3.11
+      Timeout: 60
+      MemorySize: 256
+      Description: Scheduled function that evaluates weather triggers and dispatches EventBridge events.
+      Environment:
+        Variables:
+          BUSINESSES_TABLE: !Ref BusinessesTable
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref BusinessesTable
+        - DynamoDBWritePolicy:
+            TableName: !Ref BusinessesTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - events:PutEvents
+              Resource: '*'
+      Events:
+        Schedule12h:
+          Type: Schedule
+          Properties:
+            Schedule: rate(12 hours)
+
+  # EventBridge Rule to invoke Bedrock generator on weather triggers
+  WeatherGenerationRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - adgenie.weather
+        detail-type:
+          - "Weather Trigger Activated"
+      Targets:
+        - Arn: !GetAtt BedrockGenerateFunction.Arn
+          Id: BedrockGenerateTarget
+
+  # Permission allowing EventBridge to invoke BedrockGenerateFunction
+  BedrockGenerateInvokeByEvents:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref BedrockGenerateFunction
+      Action: "lambda:InvokeFunction"
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt WeatherGenerationRule.Arn
+
