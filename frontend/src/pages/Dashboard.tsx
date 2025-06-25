@@ -18,6 +18,7 @@ const Dashboard = () => {
   const [isGeneratingBoost, setIsGeneratingBoost] = useState(false);
   const [nextPostDelta, setNextPostDelta] = useState<string>("--");
   const [upcomingList, setUpcomingList] = useState<any[]>([]);
+  const [publishedPostsList, setPublishedPostsList] = useState<any[]>([]);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -138,6 +139,73 @@ const Dashboard = () => {
     });
 
     setUpcomingList(list);
+  }, [businessData]);
+
+  // Compute published posts whenever businessData changes
+  useEffect(() => {
+    if (!businessData) return;
+
+    const publishedRaw: any[] = (businessData as any).publishedPosts || [];
+    const now = new Date();
+
+    // Sort by timestamp descending (newest first) and take first 3
+    const recentPosts = publishedRaw
+      .filter(p => p && p.timestamp)
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 3)
+      .map(post => {
+        const postDate = new Date(post.timestamp);
+        let timeAgo = '';
+        
+        const minutesDiff = differenceInMinutes(now, postDate);
+        if (minutesDiff < 60) {
+          timeAgo = `${minutesDiff}m ago`;
+        } else {
+          const hoursDiff = differenceInHours(now, postDate);
+          if (hoursDiff < 24) {
+            timeAgo = `${hoursDiff}h ago`;
+          } else if (isToday(postDate)) {
+            timeAgo = 'Today';
+          } else {
+            timeAgo = format(postDate, 'MMM d');
+          }
+        }
+
+        // Truncate caption for display
+        const displayCaption = post.caption?.length > 100 
+          ? post.caption.substring(0, 100) + '...' 
+          : post.caption;
+
+        // Determine trigger styling based on triggerCategory
+        let triggerIcon = Sun;
+        let triggerColor = 'text-yellow-600';
+        let triggerBg = 'bg-yellow-100';
+        let triggerLabel = 'Weather Trigger';
+        
+        if (post.triggerCategory === 'holiday') {
+          triggerIcon = PartyPopper;
+          triggerColor = 'text-purple-600';
+          triggerBg = 'bg-purple-100';
+          triggerLabel = 'Holiday Trigger';
+        } else if (post.triggerCategory === 'timeBased') {
+          triggerIcon = Clock;
+          triggerColor = 'text-green-600';
+          triggerBg = 'bg-green-100';
+          triggerLabel = 'Time-Based Trigger';
+        }
+
+        return {
+          ...post,
+          timeAgo,
+          displayCaption,
+          triggerIcon,
+          triggerColor,
+          triggerBg,
+          triggerLabel
+        };
+      });
+
+    setPublishedPostsList(recentPosts);
   }, [businessData]);
 
   if (loading || loadingBusiness) {
@@ -430,72 +498,46 @@ const Dashboard = () => {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="border border-gray-200 rounded-lg p-4 bg-gradient-to-r from-yellow-50 to-orange-50">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center space-x-2">
-                          <Sun className="h-4 w-4 text-yellow-600" />
-                          <Badge variant="outline" className="text-xs border-yellow-300 text-yellow-700">Weather Trigger</Badge>
-                        </div>
-                        <Badge className="bg-green-50 text-green-700 border-green-200 text-xs">Published</Badge>
+                    {publishedPostsList.length === 0 ? (
+                      <div className="text-center py-8">
+                        <p className="text-gray-500 text-sm">No published posts yet</p>
+                        <p className="text-gray-400 text-xs mt-1">Your AI-generated content will appear here once published</p>
                       </div>
-                      <p className="font-medium text-gray-900 mb-2">☀️ Perfect sunny day for iced coffee!</p>
-                      <p className="text-sm text-gray-600 mb-3">
-                        "Beat the heat with our signature cold brew! Made fresh daily with premium beans. 
-                        Nothing says sunny day like a refreshing iced coffee. ☕❄️"
-                      </p>
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-gray-500">2 hours ago</span>
-                        <div className="flex items-center space-x-2 text-xs text-gray-500">
-                          <span>❤️ 24</span>
-                          <span>💬 7</span>
-                          <span>📤 3</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="border border-gray-200 rounded-lg p-4 bg-gradient-to-r from-blue-50 to-indigo-50">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center space-x-2">
-                          <Clock className="h-4 w-4 text-green-600" />
-                          <Badge variant="outline" className="text-xs border-green-300 text-green-700">Monday Trigger</Badge>
-                        </div>
-                        <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs">Scheduled</Badge>
-                      </div>
-                      <p className="font-medium text-gray-900 mb-2">☕ Monday Motivation starts here!</p>
-                      <p className="text-sm text-gray-600 mb-3">
-                        "New week, new energy! Start your Monday right with our energizing espresso blend. 
-                        Let's make this week amazing together! 💪"
-                      </p>
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-gray-500">Scheduled for tomorrow 8:00 AM</span>
-                        <Button variant="ghost" size="sm" className="text-xs">
-                          <Play className="w-3 h-3 mr-1" />
-                          Preview
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="border border-gray-200 rounded-lg p-4 bg-gradient-to-r from-purple-50 to-pink-50">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center space-x-2">
-                          <PartyPopper className="h-4 w-4 text-purple-600" />
-                          <Badge variant="outline" className="text-xs border-purple-300 text-purple-700">Holiday Trigger</Badge>
-                        </div>
-                        <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-xs">Draft</Badge>
-                      </div>
-                      <p className="font-medium text-gray-900 mb-2">🎉 Thadingyut Festival Special!</p>
-                      <p className="text-sm text-gray-600 mb-3">
-                        "Celebrating the Festival of Lights with our community! Special traditional treats 
-                        and warm beverages to brighten your celebration. 🏮✨"
-                      </p>
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-gray-500">Ready for Thadingyut Festival</span>
-                        <Button variant="ghost" size="sm" className="text-xs">
-                          <ArrowRight className="w-3 h-3 mr-1" />
-                          Edit & Approve
-                        </Button>
-                      </div>
-                    </div>
+                    ) : (
+                      publishedPostsList.map((post, index) => {
+                        const TriggerIcon = post.triggerIcon;
+                        return (
+                          <div key={post.postID || index} className="border border-gray-200 rounded-lg p-4 bg-gradient-to-r from-yellow-50 to-orange-50">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center space-x-2">
+                                <TriggerIcon className={`h-4 w-4 ${post.triggerColor}`} />
+                                <Badge variant="outline" className="text-xs border-yellow-300 text-yellow-700">{post.triggerLabel}</Badge>
+                              </div>
+                              <Badge className="bg-green-50 text-green-700 border-green-200 text-xs">Published</Badge>
+                            </div>
+                            <p className="text-sm text-gray-600 mb-3">
+                              {post.displayCaption}
+                            </p>
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs text-gray-500">{post.timeAgo}</span>
+                              <div className="flex items-center space-x-2">
+                                {(post.permalink || post.postID) && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="text-xs"
+                                    onClick={() => window.open(post.permalink || `https://www.instagram.com/p/${post.postID}`, '_blank')}
+                                  >
+                                    <Instagram className="w-3 h-3 mr-1" />
+                                    View on Instagram
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
                   </CardContent>
                 </Card>
 
