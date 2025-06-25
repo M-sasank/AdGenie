@@ -184,7 +184,40 @@ def publish_instagram_media(container_id: str, access_token: str, ig_user_id: st
         print(f"ERROR: Exception during media publishing: {str(e)}")
         return None
 
-def post_to_instagram(image_url: str, caption: str, business_id: str) -> bool:
+def get_instagram_permalink(media_id: str, access_token: str) -> str | None:
+    """Get the Instagram permalink for a published media.
+    
+    :param media_id: The published media ID
+    :type media_id: str
+    :param access_token: Instagram access token
+    :type access_token: str
+    :return: Instagram permalink URL if successful, None otherwise
+    :rtype: str | None
+    """
+    try:
+        url = f"{INSTAGRAM_API_BASE}/{media_id}"
+        params = {
+            'fields': 'permalink',
+            'access_token': access_token
+        }
+        
+        response = requests.get(url, params=params)
+        print(f"Permalink retrieval response: {response.status_code} - {response.text}")
+        
+        if response.status_code == 200:
+            result = response.json()
+            permalink = result.get('permalink')
+            print(f"SUCCESS: Retrieved permalink {permalink}")
+            return permalink
+        else:
+            print(f"ERROR: Failed to retrieve permalink: {response.text}")
+            return None
+            
+    except Exception as e:
+        print(f"ERROR: Exception during permalink retrieval: {str(e)}")
+        return None
+
+def post_to_instagram(image_url: str, caption: str, business_id: str, trigger_category: str | None = None) -> bool:
     """
     Complete workflow to post content to Instagram.
     
@@ -220,11 +253,28 @@ def post_to_instagram(image_url: str, caption: str, business_id: str) -> bool:
     if not media_id:
         return False
 
+    # Get Instagram permalink
+    permalink = get_instagram_permalink(media_id, access_token)
+
     # --------------------------------------------------------------------
     # Record successful publication in Businesses.publishedPosts
     # --------------------------------------------------------------------
     try:
         current_ts = datetime.utcnow().isoformat() + "Z"
+        post_record = {
+            "postID": media_id,
+            "s3Url": image_url,
+            "caption": caption,
+            "timestamp": current_ts,
+            "status": "published",
+        }
+        
+        if permalink:
+            post_record["permalink"] = permalink
+        
+        if trigger_category:
+            post_record["triggerCategory"] = trigger_category
+        
         table.update_item(
             Key={"businessID": business_id},
             UpdateExpression=(
@@ -232,15 +282,7 @@ def post_to_instagram(image_url: str, caption: str, business_id: str) -> bool:
             ),
             ExpressionAttributeValues={
                 ":empty": [],
-                ":post": [
-                    {
-                        "postID": media_id,
-                        "s3Url": image_url,
-                        "caption": caption,
-                        "timestamp": current_ts,
-                        "status": "published",
-                    }
-                ],
+                ":post": [post_record],
             },
         )
         print(
@@ -281,6 +323,7 @@ def lambda_handler(event, context):
             image_url = message_body.get('image_url')
             business_id = message_body.get('businessID')
             schedule_name = message_body.get('scheduleName')
+            trigger_category = message_body.get('triggerCategory')
         
             if not caption or not image_url or not business_id:
                 error_msg = "Message is missing required fields (caption, image_url, businessID)"
@@ -290,7 +333,7 @@ def lambda_handler(event, context):
                 continue
             
             # Attempt to post to Instagram
-            success = post_to_instagram(image_url, caption, business_id)
+            success = post_to_instagram(image_url, caption, business_id, trigger_category)
             
             if success:
                 successful += 1

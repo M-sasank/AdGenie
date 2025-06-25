@@ -73,6 +73,7 @@ def _generate_and_enqueue(
     business_id: str,
     image_prompt: str,
     schedule_name: str | None = None,
+    trigger_category: str | None = None,
 ) -> Dict:
     """Generate an image with Bedrock Titan, upload to S3, and enqueue for Instagram posting.
 
@@ -158,6 +159,8 @@ def _generate_and_enqueue(
         }
         if schedule_name is not None:
             message_body["scheduleName"] = schedule_name
+        if trigger_category is not None:
+            message_body["triggerCategory"] = trigger_category
         sqs_resp = sqs_client.send_message(
             QueueUrl=AD_CONTENT_QUEUE_URL,
             MessageBody=json.dumps(message_body),
@@ -231,6 +234,7 @@ def lambda_handler(event, context):
                 detail = json.loads(detail)
             business_id = detail.get("businessID")
             trigger_type = detail.get("triggerType")
+            trigger_category = detail.get("triggerCategory")
             schedule_name = detail.get("scheduleName")
 
             logger.info(
@@ -422,7 +426,7 @@ def lambda_handler(event, context):
             caption,
         )
 
-        gen_result = _generate_and_enqueue(caption, business_id, image_prompt, schedule_name)
+        gen_result = _generate_and_enqueue(caption, business_id, image_prompt, schedule_name, trigger_category)
         logger.info(
             "[BEDROCK_GENERATE] _generate_and_enqueue returned statusCode=%s",
             gen_result.get("statusCode"),

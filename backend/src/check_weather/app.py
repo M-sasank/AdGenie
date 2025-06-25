@@ -508,6 +508,7 @@ def lambda_handler(event: Dict[str, Any], context):
             detail = {
                 "businessID": business_id,
                 "triggerType": trig_name,
+                "triggerCategory": "weather",
                 "city": city_name,
                 "latitude": lat,
                 "longitude": lon,
