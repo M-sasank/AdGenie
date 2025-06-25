@@ -250,7 +250,10 @@ const Dashboard = () => {
       {/* Clean Header */}
       <header className="border-b border-gray-200 bg-white/80 backdrop-blur-xl">
         <div className="container mx-auto px-6 py-4 flex justify-between items-center">
-          <div className="flex items-center space-x-3">
+          <div 
+            className="flex items-center space-x-3 cursor-pointer hover:opacity-80 transition-opacity duration-200"
+            onClick={() => navigate("/")}
+          >
             <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center">
               <Bot className="h-4 w-4 text-white" />
             </div>
