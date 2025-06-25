@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Clock } from 'lucide-react';
@@ -82,7 +81,7 @@ export const TimePicker = ({
         <label className="block text-sm font-medium text-gray-700 text-center">{label}</label>
       )}
       
-      <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
+      <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 max-w-4xl mx-auto">
         <div className="flex flex-col items-center space-y-6">
           {/* Icon */}
           <div className="flex items-center justify-center w-12 h-12 bg-white rounded-full shadow-sm border border-gray-200">
@@ -90,11 +89,11 @@ export const TimePicker = ({
           </div>
           
           {/* Time Selection */}
-          <div className="flex flex-col items-center space-y-4 w-full max-w-md">
+          <div className={`${isRange ? 'flex items-center justify-center space-x-4 w-full' : 'flex flex-col items-center space-y-4 w-full max-w-md'}`}>
             {/* Start Time */}
-            <div className="flex items-center justify-center space-x-3 bg-white p-4 rounded-lg shadow-sm border border-gray-200 w-full">
+            <div className="flex items-center justify-center space-x-2 bg-white p-3 rounded-lg shadow-sm border border-gray-200">
               <Select value={startHour} onValueChange={setStartHour}>
-                <SelectTrigger className="w-20 h-12 text-center font-medium border-gray-300 focus:border-gray-900">
+                <SelectTrigger className="h-12 text-center font-medium border-gray-300 focus:border-gray-900">
                   <SelectValue placeholder="HH" />
                 </SelectTrigger>
                 <SelectContent className="bg-white border border-gray-200 shadow-lg">
@@ -109,7 +108,7 @@ export const TimePicker = ({
               <span className="text-gray-400 font-medium text-lg">:</span>
 
               <Select value={startMinute} onValueChange={setStartMinute}>
-                <SelectTrigger className="w-20 h-12 text-center font-medium border-gray-300 focus:border-gray-900">
+                <SelectTrigger className="h-12 text-center font-medium border-gray-300 focus:border-gray-900">
                   <SelectValue placeholder="MM" />
                 </SelectTrigger>
                 <SelectContent className="max-h-40 bg-white border border-gray-200 shadow-lg">
@@ -122,7 +121,7 @@ export const TimePicker = ({
               </Select>
 
               <Select value={startPeriod} onValueChange={setStartPeriod}>
-                <SelectTrigger className="w-20 h-12 text-center font-medium border-gray-300 focus:border-gray-900">
+                <SelectTrigger className="h-12 text-center font-medium border-gray-300 focus:border-gray-900">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-white border border-gray-200 shadow-lg">
@@ -132,57 +131,50 @@ export const TimePicker = ({
               </Select>
             </div>
 
-            {/* Range separator and End Time */}
             {isRange && (
-              <>
-                <div className="flex items-center justify-center">
-                  <div className="flex items-center space-x-2 text-gray-500">
-                    <div className="w-8 h-px bg-gray-300"></div>
-                    <span className="text-sm font-medium bg-white px-3 py-1 rounded-full border border-gray-200">to</span>
-                    <div className="w-8 h-px bg-gray-300"></div>
-                  </div>
-                </div>
-                
-                <div className="flex items-center justify-center space-x-3 bg-white p-4 rounded-lg shadow-sm border border-gray-200 w-full">
-                  <Select value={endHour} onValueChange={setEndHour}>
-                    <SelectTrigger className="w-20 h-12 text-center font-medium border-gray-300 focus:border-gray-900">
-                      <SelectValue placeholder="HH" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white border border-gray-200 shadow-lg">
-                      {hours.map((h) => (
-                        <SelectItem key={h.value} value={h.value} className="hover:bg-gray-50">
-                          {h.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              <span className="text-sm font-medium text-gray-500 px-2">to</span>
+            )}
 
-                  <span className="text-gray-400 font-medium text-lg">:</span>
+            {isRange && (
+              <div className="flex items-center justify-center space-x-2 bg-white p-3 rounded-lg shadow-sm border border-gray-200">
+                <Select value={endHour} onValueChange={setEndHour}>
+                  <SelectTrigger className="h-12 text-center font-medium border-gray-300 focus:border-gray-900">
+                    <SelectValue placeholder="HH" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                    {hours.map((h) => (
+                      <SelectItem key={h.value} value={h.value} className="hover:bg-gray-50">
+                        {h.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-                  <Select value={endMinute} onValueChange={setEndMinute}>
-                    <SelectTrigger className="w-20 h-12 text-center font-medium border-gray-300 focus:border-gray-900">
-                      <SelectValue placeholder="MM" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-40 bg-white border border-gray-200 shadow-lg">
-                      {minutes.filter((_, i) => i % 15 === 0).map((m) => (
-                        <SelectItem key={m.value} value={m.value} className="hover:bg-gray-50">
-                          {m.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <span className="text-gray-400 font-medium text-lg">:</span>
 
-                  <Select value={endPeriod} onValueChange={setEndPeriod}>
-                    <SelectTrigger className="w-20 h-12 text-center font-medium border-gray-300 focus:border-gray-900">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white border border-gray-200 shadow-lg">
-                      <SelectItem value="AM" className="hover:bg-gray-50">AM</SelectItem>
-                      <SelectItem value="PM" className="hover:bg-gray-50">PM</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
+                <Select value={endMinute} onValueChange={setEndMinute}>
+                  <SelectTrigger className="h-12 text-center font-medium border-gray-300 focus:border-gray-900">
+                    <SelectValue placeholder="MM" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-40 bg-white border border-gray-200 shadow-lg">
+                    {minutes.filter((_, i) => i % 15 === 0).map((m) => (
+                      <SelectItem key={m.value} value={m.value} className="hover:bg-gray-50">
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={endPeriod} onValueChange={setEndPeriod}>
+                  <SelectTrigger className="h-12 text-center font-medium border-gray-300 focus:border-gray-900">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                    <SelectItem value="AM" className="hover:bg-gray-50">AM</SelectItem>
+                    <SelectItem value="PM" className="hover:bg-gray-50">PM</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             )}
           </div>
         </div>
