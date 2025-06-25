@@ -1,8 +1,9 @@
 import json
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, time
 from decimal import Decimal
 from typing import Dict, Any, List
+from zoneinfo import ZoneInfo
 
 import boto3
 import requests
@@ -32,6 +33,10 @@ HTTP_SESSION = requests.Session()
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+# Minimum number of consecutive forecast hours that must satisfy a trigger
+# condition before we consider it significant enough to act on.
+MIN_CONSECUTIVE_HOURS: int = 2
 
 # ---------------------------------------------------------------------------
 # Helper functions
@@ -243,60 +248,119 @@ def _first_trigger_index(
     forecast: Dict[str, List[Any]],
     mean_temp: float,
     std_temp: float,
+    open_local: str | None,
+    close_local: str | None,
+    tz_name: str | None,
 ) -> int | None:
-    """Return earliest index (0-based) at which *trigger_name* condition is met.
+    """Return earliest index at which trigger condition holds for a sustained window.
 
-    Parameters
-    ----------
-    trigger_name : str
-        One of ``coldWeather``, ``hotWeather``, ``rain``, ``sunAfterRain``.
-    forecast : Dict[str, List[Any]]
-        Output from :pyfunc:`_get_next12h_forecast`.
-    mean_temp : float
-        30-day historical average temperature.
-    std_temp : float
-        Population standard deviation of the past 30-day daily-mean temperature.
-
-    Returns
-    -------
-    int | None
-        Index of the first hour that satisfies the trigger or ``None``.
+    A valid trigger now requires the condition to be satisfied for *at least*
+    ``MIN_CONSECUTIVE_HOURS`` consecutive forecast hours. This reduces false
+    positives caused by short-lived fluctuations.
     """
+
     temps = forecast["temperature"]
     precs = forecast["precipitation"]
 
+    total_hours = len(temps)
+    if total_hours < MIN_CONSECUTIVE_HOURS:
+        return None
+
     threshold = 1.5 * std_temp
 
-    if trigger_name == "coldWeather":
-        for idx, t in enumerate(temps):
-            delta = mean_temp - t
-            if delta > threshold:
+    def window_satisfies(start: int) -> bool:
+        end = start + MIN_CONSECUTIVE_HOURS
+        if trigger_name == "coldWeather":
+            return all((mean_temp - temps[i]) > threshold for i in range(start, end))
+        if trigger_name == "hotWeather":
+            return all((temps[i] - mean_temp) > threshold for i in range(start, end))
+        if trigger_name == "rain":
+            return all(precs[i] > 0.2 for i in range(start, end))
+        return False
+
+    for idx in range(0, total_hours - MIN_CONSECUTIVE_HOURS + 1):
+        # Business hours gate --------------------------------------------------
+        ts_iso = forecast["time"][idx]
+        if not _is_within_local_hours(ts_iso, open_local, close_local, tz_name):
+            continue
+
+        if window_satisfies(idx):
+            end_idx = idx + MIN_CONSECUTIVE_HOURS - 1
+            if trigger_name == "rain":
                 logger.info(
-                    "[CHECK_WEATHER] coldWeather first idx=%s temp=%.2f delta=%.2f thresh=%.2f",
+                    "[CHECK_WEATHER] %s sustained %sh window idx=%s-%s precip_avg=%.2f (local window)",
+                    trigger_name,
+                    MIN_CONSECUTIVE_HOURS,
                     idx,
-                    t,
-                    delta,
+                    end_idx,
+                    sum(precs[idx:end_idx+1]) / MIN_CONSECUTIVE_HOURS,
+                )
+            else:
+                # temperature delta info
+                deltas = [abs(temps[i] - mean_temp) for i in range(idx, end_idx + 1)]
+                logger.info(
+                    "[CHECK_WEATHER] %s sustained %sh window idx=%s-%s avgΔ=%.2f°C threshold=%.2f°C (local window)",
+                    trigger_name,
+                    MIN_CONSECUTIVE_HOURS,
+                    idx,
+                    end_idx,
+                    sum(deltas) / MIN_CONSECUTIVE_HOURS,
                     threshold,
                 )
-                return idx
-    elif trigger_name == "hotWeather":
-        for idx, t in enumerate(temps):
-            delta = t - mean_temp
-            if delta > threshold:
-                logger.info(
-                    "[CHECK_WEATHER] hotWeather first idx=%s temp=%.2f delta=%.2f thresh=%.2f",
-                    idx,
-                    t,
-                    delta,
-                    threshold,
-                )
-                return idx
-    elif trigger_name == "rain":
-        for idx, p in enumerate(precs):
-            if p > 0.2:
-                logger.info("[CHECK_WEATHER] rain first index %s precip=%s", idx, p)
-                return idx
+            return idx
+
     return None
+
+
+# ---------------------------------------------------------------------------
+# Local-hours helper
+# ---------------------------------------------------------------------------
+
+
+def _is_within_local_hours(
+    ts_iso: str,
+    open_local: str | None,
+    close_local: str | None,
+    tz_name: str | None,
+) -> bool:
+    """Return *True* if the UTC timestamp *ts_iso* falls within the local open window.
+
+    Parameters
+    ----------
+    ts_iso : str
+        Forecast timestamp in ISO-8601 Zulu (e.g. ``"2025-06-25T09:00:00Z"``).
+    open_local, close_local : str | None
+        Local time strings in HH:MM 24-hour format (e.g. ``"09:00"``).
+    tz_name : str | None
+        IANA time-zone identifier (e.g. ``"Asia/Yangon"``).
+    """
+    if not open_local or not close_local or not tz_name:
+        return True  # insufficient data → allow
+
+    try:
+        tz = ZoneInfo(tz_name)
+    except Exception:
+        return True  # unknown TZ → allow
+
+    try:
+        # Convert forecast timestamp to local time
+        ts_dt = datetime.fromisoformat(ts_iso.replace("Z", "+00:00")).astimezone(tz)
+        ts_local_time = time(ts_dt.hour, ts_dt.minute)
+
+        open_parts = open_local.split(":")
+        close_parts = close_local.split(":")
+        if len(open_parts) != 2 or len(close_parts) != 2:
+            return True
+
+        open_time = time(int(open_parts[0]), int(open_parts[1]))
+        close_time = time(int(close_parts[0]), int(close_parts[1]))
+
+        if open_time <= close_time:
+            return open_time <= ts_local_time < close_time
+        # Overnight shift (e.g., 18:00 – 02:00)
+        return ts_local_time >= open_time or ts_local_time < close_time
+    except Exception:  # noqa: BLE001
+        return True
 
 
 # ---------------------------------------------------------------------------
@@ -309,8 +373,8 @@ def lambda_handler(event: Dict[str, Any], context):
     now_utc = datetime.now(timezone.utc)
 
     # 1. Scan all businesses (projection narrow)
-    projection = "businessID, #loc, latitude, longitude, triggers"
-    expr_attr_names = {"#loc": "location"}
+    projection = "businessID, #loc, latitude, longitude, triggers, openTimeLocal, closeTimeLocal, #tz"
+    expr_attr_names = {"#loc": "location", "#tz": "timeZone"}
     response = BUSINESSES_TABLE.scan(
         ProjectionExpression=projection, ExpressionAttributeNames=expr_attr_names
     )
@@ -400,8 +464,28 @@ def lambda_handler(event: Dict[str, Any], context):
             )
             continue
 
+        open_local: str | None = item.get("openTimeLocal")
+        close_local: str | None = item.get("closeTimeLocal")
+        tz_name: str | None = item.get("timeZone")
+
+        logger.info(
+            "[CHECK_WEATHER] Open hours for %s: %s-%s (%s)",
+            business_id,
+            open_local,
+            close_local,
+            tz_name,
+        )
+
         for trig_name in ("coldWeather", "hotWeather", "rain"):
-            idx = _first_trigger_index(trig_name, forecast, mean_temp, std_temp)
+            idx = _first_trigger_index(
+                trig_name,
+                forecast,
+                mean_temp,
+                std_temp,
+                open_local,
+                close_local,
+                tz_name,
+            )
             if idx is None:
                 logger.info(
                     "[CHECK_WEATHER] Trigger %s not present within 12-h window",
@@ -430,6 +514,7 @@ def lambda_handler(event: Dict[str, Any], context):
                 "temperature": forecast["temperature"],
                 "precipitation": forecast["precipitation"],
                 "triggerTime": trigger_time_iso,
+                "scheduleName": "",  # placeholder, will set below
                 "timestamp": now_utc.isoformat(),
             }
 
@@ -450,11 +535,14 @@ def lambda_handler(event: Dict[str, Any], context):
             rand4 = secrets.token_hex(2)
             schedule_name = f"ag-{trig_name}-{biz8}-{ts_epoch}-{rand4}"
 
+            # inject into detail and upcomingPosts
+            detail["scheduleName"] = schedule_name
+
             try:
                 SCHEDULER.create_schedule(
                     Name=schedule_name,
                     GroupName="default",
-                    ScheduleExpression=f"at({trigger_time_iso})",
+                    ScheduleExpression=f"at({trigger_time_iso.rstrip('Z')})",
                     FlexibleTimeWindow={"Mode": "OFF"},
                     Target={
                         "Arn": BEDROCK_GENERATE_FUNCTION_ARN,
