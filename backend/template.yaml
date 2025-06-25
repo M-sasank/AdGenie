@@ -309,6 +309,8 @@ Resources:
       Environment:
         Variables:
           BUSINESSES_TABLE: !Ref BusinessesTable
+          BEDROCK_GENERATE_FUNCTION_ARN: !GetAtt BedrockGenerateFunction.Arn
+          SCHEDULER_ROLE_ARN: !GetAtt SchedulerInvokeRole.Arn
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Ref BusinessesTable
@@ -318,6 +320,8 @@ Resources:
             - Effect: Allow
               Action:
                 - events:PutEvents
+                - scheduler:CreateSchedule
+                - scheduler:DeleteSchedule
               Resource: '*'
       Events:
         Schedule12h:
@@ -346,4 +350,34 @@ Resources:
       Action: "lambda:InvokeFunction"
       Principal: events.amazonaws.com
       SourceArn: !GetAtt WeatherGenerationRule.Arn
+
+  # IAM role that EventBridge Scheduler uses to invoke the BedrockGenerateFunction
+  SchedulerInvokeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SchedulerInvokeLambda
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !GetAtt BedrockGenerateFunction.Arn
+
+  # Permission allowing EventBridge Scheduler to invoke BedrockGenerateFunction
+  BedrockGenerateInvokeByScheduler:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref BedrockGenerateFunction
+      Action: "lambda:InvokeFunction"
+      Principal: scheduler.amazonaws.com
+      # SourceArn intentionally omitted to allow any scheduler schedule in this account/region
 
