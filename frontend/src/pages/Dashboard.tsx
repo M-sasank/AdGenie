@@ -3,13 +3,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Bot, Instagram, Zap, Calendar, TrendingUp, Coffee, Sun, Cloud, CloudRain, Clock, Sparkles, PartyPopper, ArrowRight, CheckCircle, Play, Activity, Users, Heart, MessageCircle, Share2, BarChart3, Lightbulb, Edit } from "lucide-react";
+import { Bot, Instagram, Zap, Calendar, TrendingUp, Coffee, Sun, Cloud, CloudRain, Clock, Sparkles, PartyPopper, ArrowRight, CheckCircle, Play, Activity, Users, Heart, MessageCircle, Share2, BarChart3, Lightbulb, Edit, DollarSign, HelpCircle } from "lucide-react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { businessService } from "@/services/businessService";
 import { toast } from "sonner";
 import EditBusinessModal from "@/components/EditBusinessModal";
 import { BoostNowModal } from '@/components/BoostNowModal';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { parseISO, differenceInMinutes, differenceInHours, format, isToday, isTomorrow } from 'date-fns';
 
 const Dashboard = () => {
@@ -23,6 +24,55 @@ const Dashboard = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [boostOpen, setBoostOpen] = useState(false);
   const navigate = useNavigate();
+
+  // Trigger configuration mapping
+  const triggerConfig = {
+    weather: {
+      hotSunny: { icon: Sun, color: 'text-yellow-600', label: 'Hot & Sunny' },
+      rainy: { icon: CloudRain, color: 'text-blue-800', label: 'Rainy Weather' },
+      coolPleasant: { icon: Cloud, color: 'text-blue-600', label: 'Cool & Pleasant' }
+    },
+    timeBased: {
+      mondayCoffee: { icon: Clock, color: 'text-green-600', label: 'Monday Coffee' },
+      paydaySales: { icon: DollarSign, color: 'text-green-700', label: 'Payday Sales' },
+      weekendSpecials: { icon: Calendar, color: 'text-orange-600', label: 'Weekend Specials' }
+    },
+    holidays: {
+      localFestivals: { icon: PartyPopper, color: 'text-purple-600', label: 'Local Festivals' },
+      internationalHolidays: { icon: PartyPopper, color: 'text-purple-700', label: 'International Holidays' }
+    },
+    manual: {
+      boostNow: { icon: Zap, color: 'text-orange-600', label: 'Manual Boost' }
+    }
+  };
+
+  // Calculate active triggers count
+  const activeTriggerCount = useMemo(() => {
+    if (!businessData?.triggers) return 0;
+    
+    let count = 0;
+    Object.values(businessData.triggers).forEach(category => {
+      Object.values(category).forEach(isActive => {
+        if (isActive === true) count++;
+      });
+    });
+    return count;
+  }, [businessData?.triggers]);
+
+  // Calculate posts this month count
+  const postsThisMonthCount = useMemo(() => {
+    if (!businessData?.publishedPosts) return 0;
+    
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    return businessData.publishedPosts.filter(post => {
+      if (!post.timestamp) return false;
+      const postDate = new Date(post.timestamp);
+      return postDate.getMonth() === currentMonth && postDate.getFullYear() === currentYear;
+    }).length;
+  }, [businessData?.publishedPosts]);
 
   // Helper function to check Instagram connection status
   const isInstagramConnected = (businessData: any) => {
@@ -304,51 +354,81 @@ const Dashboard = () => {
 
             {/* Stats Cards */}
             <div className="grid md:grid-cols-4 gap-6 mb-10">
-              <Card className="border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow duration-200">
+              <Card className="border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow duration-200 relative">
                 <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-start justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-500">Active Triggers</p>
-                      <p className="text-2xl font-bold text-gray-900">6</p>
+                      <p className="text-2xl font-bold text-gray-900">{activeTriggerCount}</p>
                     </div>
                     <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center">
                       <CheckCircle className="h-5 w-5 text-green-600" />
                     </div>
                   </div>
                 </CardContent>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger className="absolute bottom-3 right-3">
+                      <HelpCircle className="h-3 w-3 text-gray-400 hover:text-gray-600" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-xs">Number of automation triggers currently enabled (weather, time-based, holidays)</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </Card>
               
-              <Card className="border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow duration-200">
+              <Card className="border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow duration-200 relative">
                 <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-start justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-500">Posts This Month</p>
-                      <p className="text-2xl font-bold text-gray-900">24</p>
+                      <p className="text-2xl font-bold text-gray-900">{postsThisMonthCount}</p>
                     </div>
                     <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center">
                       <Instagram className="h-5 w-5 text-purple-600" />
                     </div>
                   </div>
                 </CardContent>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger className="absolute bottom-3 right-3">
+                      <HelpCircle className="h-3 w-3 text-gray-400 hover:text-gray-600" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-xs">Total number of AI-generated posts published to Instagram this month</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </Card>
               
-              <Card className="border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow duration-200">
+              <Card className="border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow duration-200 relative">
                 <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-500">Engagement Rate</p>
-                      <p className="text-2xl font-bold text-gray-900">+24%</p>
+                      <p className="text-sm font-medium text-gray-500">Total Engagement</p>
+                      <p className="text-2xl font-bold text-gray-900">24</p>
                     </div>
                     <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
                       <TrendingUp className="h-5 w-5 text-blue-600" />
                     </div>
                   </div>
                 </CardContent>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger className="absolute bottom-3 right-3">
+                      <HelpCircle className="h-3 w-3 text-gray-400 hover:text-gray-600" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-xs">Combined likes, comments, and shares across all your published posts</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </Card>
               
-              <Card className="border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow duration-200">
+              <Card className="border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow duration-200 relative">
                 <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-start justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-500">Next Post</p>
                       <p className="text-2xl font-bold text-gray-900">{nextPostDelta}</p>
@@ -358,6 +438,16 @@ const Dashboard = () => {
                     </div>
                   </div>
                 </CardContent>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger className="absolute bottom-3 right-3">
+                      <HelpCircle className="h-3 w-3 text-gray-400 hover:text-gray-600" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-xs">Time until your next scheduled AI-generated post is published</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </Card>
             </div>
 
@@ -410,41 +500,19 @@ const Dashboard = () => {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <Sun className="w-4 h-4 text-yellow-600" />
-                          <span className="text-sm font-medium text-gray-700">Hot & Sunny</span>
-                        </div>
-                        <Switch defaultChecked onCheckedChange={(checked) => handleTriggerToggle('weather.hotSunny', checked)} />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <CloudRain className="w-4 h-4 text-blue-800" />
-                          <span className="text-sm font-medium text-gray-700">Rainy Weather</span>
-                        </div>
-                        <Switch defaultChecked onCheckedChange={(checked) => handleTriggerToggle('weather.rainy', checked)} />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <Clock className="w-4 h-4 text-green-600" />
-                          <span className="text-sm font-medium text-gray-700">Monday Coffee</span>
-                        </div>
-                        <Switch defaultChecked onCheckedChange={(checked) => handleTriggerToggle('timeBased.mondayCoffee', checked)} />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <Calendar className="w-4 h-4 text-orange-600" />
-                          <span className="text-sm font-medium text-gray-700">Weekend Specials</span>
-                        </div>
-                        <Switch defaultChecked onCheckedChange={(checked) => handleTriggerToggle('timeBased.weekendSpecials', checked)} />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <PartyPopper className="w-4 h-4 text-purple-600" />
-                          <span className="text-sm font-medium text-gray-700">Local Festivals</span>
-                        </div>
-                        <Switch defaultChecked onCheckedChange={(checked) => handleTriggerToggle('holidays.localFestivals', checked)} />
-                      </div>
+                      {Object.entries(businessData?.triggers || {}).map(([category, triggers]) =>
+                        Object.entries(triggers).filter(([, isActive]) => isActive === true).map(([triggerKey]) => {
+                          const config = triggerConfig[category]?.[triggerKey];
+                          if (!config) return null;
+                          const IconComponent = config.icon;
+                          return (
+                            <div key={`${category}.${triggerKey}`} className="flex items-center space-x-3">
+                              <IconComponent className={`w-4 h-4 ${config.color}`} />
+                              <span className="text-sm font-medium text-gray-700">{config.label}</span>
+                            </div>
+                          );
+                        })
+                      )}
                     </div>
                   </CardContent>
                 </Card>
