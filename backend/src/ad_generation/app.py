@@ -1,72 +1,151 @@
-import json
 import boto3
+import base64
+import uuid
+import json
 import os
+from decimal import Decimal
 
-bedrock_runtime = boto3.client(service_name='bedrock-runtime')
+# Initialize clients
 sqs_client = boto3.client('sqs')
-
 AD_CONTENT_QUEUE_URL = os.environ.get('AD_CONTENT_QUEUE_URL')
 
-def generate_caption(business_details, trigger_type):
-    """Generate a marketing caption for the business.
+def decimal_converter(obj):
+    """Convert Decimal types to int or float for JSON serialization
     
-    :param business_details: Dictionary containing business information
-    :type business_details: dict
-    :param trigger_type: Type of trigger that initiated the ad generation
-    :type trigger_type: str
-    :return: Generated caption text
-    :rtype: str
+    :param obj: Object to convert
+    :type obj: Any
+    :return: Converted object for JSON serialization
+    :rtype: int, float, or raises TypeError
     """
-    print(f"Generating caption for {business_details['businessName']} based on trigger: {trigger_type}")
-    return f"A test caption for {business_details['businessName']} on {trigger_type}."
-
-def generate_image(prompt):
-    """Generate an image URL based on the provided prompt.
-    
-    :param prompt: Text prompt for image generation
-    :type prompt: str
-    :return: URL of the generated image
-    :rtype: str
-    """
-    print(f"Generating image with prompt: {prompt}")
-    return "https://plus.unsplash.com/premium_photo-1668184521768-776b8a87ee4f?q=80&w=1548&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
+    if isinstance(obj, Decimal):
+        if obj % 1 == 0:
+            return int(obj)
+        else:
+            return float(obj)
+    raise TypeError
 
 def lambda_handler(event, context):
-    """AWS Lambda handler for ad generation requests.
+    """Generate image and text using Amazon Bedrock models, upload to S3, and send to SQS queue
     
-    :param event: Lambda event containing request data
+    :param event: Lambda event containing businessID and customPrompt in request body
     :type event: dict
     :param context: Lambda runtime context
     :type context: LambdaContext
-    :return: HTTP response with status and message
+    :return: HTTP response with S3 URL, caption, and queue status
     :rtype: dict
     """
-    print(f"Received event: {json.dumps(event)}")
-    
-    try:
-        body = json.loads(event.get('body', '{}'))
-        business_id = body.get('businessID')
-        trigger_type = body.get('triggerType')
+    cors_headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+        'Access-Control-Allow-Methods': 'POST,OPTIONS'
+    }
 
-        if not business_id or not trigger_type:
-            return {
-                'statusCode': 400,
-                'body': json.dumps({'error': 'businessID and triggerType are required.'})
-            }
-
-        business_details = {
-            'businessName': 'Test Cafe',
-            'brandVoice': 'Friendly and energetic'
+    # Handle OPTIONS request for CORS preflight
+    if event.get('httpMethod') == 'OPTIONS':
+        return {
+            'statusCode': 200,
+            'headers': cors_headers,
+            'body': ''
         }
 
-        caption = generate_caption(business_details, trigger_type)
-        image_url = generate_image(prompt=caption)
+    try:
+        # Parse request body to get businessID and customPrompt
+        body = json.loads(event.get('body', '{}'))
+        business_id = body.get('businessID')
+        custom_prompt = body.get('customPrompt', '').strip()
         
-        print(f"Sending ad content to queue: {AD_CONTENT_QUEUE_URL}")
+        if not business_id or not custom_prompt:
+            return {
+                'statusCode': 400,
+                'headers': {**cors_headers, 'Content-Type': 'application/json'},
+                'body': json.dumps({'error': 'businessID and customPrompt are required.'})
+            }
+
+        bedrock = boto3.client('bedrock-runtime')
+        s3 = boto3.client('s3')
+        BUCKET_NAME = os.environ.get('PUBLIC_BUCKET_NAME')
+
+        # 1. Rewrite prompt for image generation using Claude
+        rewrite_system_prompt = (
+            "Rewrite the following offer or announcement as a visual scene description for an AI image generator. "
+            "Do not include any text, numbers, or offers. Focus on the mood, setting, and occasion."
+        )
+        rewrite_model_id = "anthropic.claude-3-sonnet-20240229-v1:0"
+        rewrite_response = bedrock.invoke_model(
+            modelId=rewrite_model_id,
+            contentType="application/json",
+            accept="application/json",
+            body=json.dumps({
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": 128,
+                "messages": [
+                    {"role": "system", "content": rewrite_system_prompt},
+                    {"role": "user", "content": custom_prompt}
+                ]
+            })
+        )
+        rewrite_body = json.loads(rewrite_response['body'].read().decode('utf-8'))
+        image_prompt = rewrite_body['content'][0]['text']
+
+        # 2. Generate caption using Claude
+        caption_model_id = "anthropic.claude-3-sonnet-20240229-v1:0"
+        caption_response = bedrock.invoke_model(
+            modelId=caption_model_id,
+            contentType="application/json",
+            accept="application/json",
+            body=json.dumps({
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": 256,
+                "messages": [
+                    {"role": "user", "content": custom_prompt}
+                ]
+            })
+        )
+        caption_body = json.loads(caption_response['body'].read().decode('utf-8'))
+        caption = caption_body['content'][0]['text']
+
+        # 3. Generate image using Titan
+        image_model_id = "amazon.titan-image-generator-v2:0"
+        titan_body = json.dumps({
+            "taskType": "TEXT_IMAGE",
+            "textToImageParams": {
+                "text": image_prompt
+            },
+            "imageGenerationConfig": {
+                "numberOfImages": 1,
+                "height": 1024,
+                "width": 1024,
+                "cfgScale": 8.0
+            }
+        })
+        image_response = bedrock.invoke_model(
+            modelId=image_model_id,
+            contentType="application/json",
+            accept="application/json",
+            body=titan_body
+        )
+        image_data = image_response['body'].read()
+        image_json = json.loads(image_data)
+        image_base64 = image_json['images'][0]
+        image_bytes = base64.b64decode(image_base64)
+        image_key = f"generated-images/{uuid.uuid4()}.png"
+        
+        s3.put_object(
+            Bucket=BUCKET_NAME,
+            Key=image_key,
+            Body=image_bytes,
+            ContentType='image/png',
+            # ACL='public-read'
+        )
+        
+        s3_url = f"https://{BUCKET_NAME}.s3.amazonaws.com/{image_key}"
+
+        # 4. Send message to SQS queue for Instagram posting
+        print(f"Sending content to queue: {AD_CONTENT_QUEUE_URL}")
         
         message_body = {
             'caption': caption,
-            'image_url': image_url,
+            'image_url': s3_url,
             'businessID': business_id
         }
         
@@ -74,16 +153,27 @@ def lambda_handler(event, context):
             QueueUrl=AD_CONTENT_QUEUE_URL,
             MessageBody=json.dumps(message_body)
         )
-        
+
         return {
-            'statusCode': 202,
-            'headers': {'Content-Type': 'application/json'},
-            'body': json.dumps({'message': 'Ad generation request accepted and is being processed.'})
+            'statusCode': 200,
+            'headers': {**cors_headers, 'Content-Type': 'application/json'},
+            'body': json.dumps({
+                "s3_public_url": s3_url,
+                "caption_generated": caption,
+                "message": "Content generated and queued for Instagram posting"
+            }, default=decimal_converter)
         }
 
+    except json.JSONDecodeError:
+        return {
+            'statusCode': 400,
+            'headers': {**cors_headers, 'Content-Type': 'application/json'},
+            'body': json.dumps({'error': 'Invalid JSON in request body.'})
+        }
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error in bedrock_generate: {e}")
         return {
             'statusCode': 500,
-            'body': json.dumps({'error': 'Failed the process.'})
-        } 
+            'headers': {**cors_headers, 'Content-Type': 'application/json'},
+            'body': json.dumps({'error': f'Failed to generate content: {str(e)}'})
+        }

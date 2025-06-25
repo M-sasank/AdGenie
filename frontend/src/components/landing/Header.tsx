@@ -1,13 +1,14 @@
-
 import { Button } from "@nextui-org/react";
 import { Bot } from "lucide-react";
 
 interface HeaderProps {
   onLogin: () => void;
   onGetStarted: () => void;
+  onGoToDashboard?: () => void;
+  showGoToDashboard?: boolean;
 }
 
-const Header = ({ onLogin, onGetStarted }: HeaderProps) => {
+const Header = ({ onLogin, onGetStarted, onGoToDashboard, showGoToDashboard }: HeaderProps) => {
   return (
     <header className="container mx-auto px-6 py-8 flex justify-between items-center backdrop-blur-xl bg-white/80 sticky top-0 z-50 border-b border-gray-100">
       <div className="flex items-center space-x-3">
@@ -18,21 +19,31 @@ const Header = ({ onLogin, onGetStarted }: HeaderProps) => {
           AdGenie
         </h1>
       </div>
-      <div className="flex items-center space-x-4">
-        <Button 
-          variant="light" 
-          onClick={onLogin}
-          className="text-gray-600 hover:text-gray-900 font-medium"
-        >
-          Sign In
-        </Button>
+      <div className="flex items-center gap-3">
         <Button 
           onClick={onGetStarted}
           color="primary"
-          className="font-medium px-6 py-2.5 shadow-lg hover:shadow-xl transition-all duration-200"
-          radius="full"
+          variant="solid"
+          className="font-semibold px-6 py-2.5 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 text-base"
         >
           Get Started
+        </Button>
+        {showGoToDashboard && (
+          <Button
+            onClick={onGoToDashboard}
+            color="primary"
+            variant="bordered"
+            className="font-medium px-6 py-2.5 rounded-full border-2 border-primary shadow-sm hover:shadow-lg transition-all duration-200 text-base"
+          >
+            Go to Dashboard
+          </Button>
+        )}
+        <Button 
+          variant="light" 
+          onClick={onLogin}
+          className="text-gray-600 hover:text-gray-900 font-medium px-6 py-2.5 rounded-full text-base"
+        >
+          Sign In
         </Button>
       </div>
     </header>
