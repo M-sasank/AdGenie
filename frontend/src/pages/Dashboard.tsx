@@ -9,12 +9,15 @@ import { useEffect, useState } from "react";
 import { businessService } from "@/services/businessService";
 import { toast } from "sonner";
 import EditBusinessModal from "@/components/EditBusinessModal";
+import { parseISO, differenceInMinutes, differenceInHours, format, isToday, isTomorrow } from 'date-fns';
 
 const Dashboard = () => {
   const { user, loading, signOut } = useAuth();
   const [businessData, setBusinessData] = useState(null);
   const [loadingBusiness, setLoadingBusiness] = useState(true);
   const [isGeneratingBoost, setIsGeneratingBoost] = useState(false);
+  const [nextPostDelta, setNextPostDelta] = useState<string>("--");
+  const [upcomingList, setUpcomingList] = useState<any[]>([]);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -83,6 +86,59 @@ const Dashboard = () => {
       window.history.replaceState({}, '', '/dashboard');
     }
   }, []);
+
+  // Compute upcoming posts whenever businessData changes
+  useEffect(() => {
+    if (!businessData) return;
+
+    const postsRaw: any[] = (businessData as any).upcomingPosts || [];
+    const now = new Date();
+
+    const futurePosts = postsRaw
+      .filter(p => {
+        if (!p || !p.scheduledTime) return false;
+        const ts = parseISO(p.scheduledTime);
+        return ts > now;
+      })
+      .sort((a, b) => parseISO(a.scheduledTime).getTime() - parseISO(b.scheduledTime).getTime());
+
+    // Next post delta
+    if (futurePosts.length === 0) {
+      setNextPostDelta("--");
+    } else {
+      const firstTs = parseISO(futurePosts[0].scheduledTime);
+      const mins = differenceInMinutes(firstTs, now);
+      if (mins < 60) {
+        setNextPostDelta(`${mins}m`);
+      } else {
+        const hrs = differenceInHours(firstTs, now);
+        setNextPostDelta(`${hrs}h`);
+      }
+    }
+
+    // Build display list (max 3)
+    const list = futurePosts.slice(0, 3).map(item => {
+      const ts = parseISO(item.scheduledTime);
+      let subtitle = format(ts, 'PPpp');
+      if (isToday(ts)) {
+        subtitle = `Today at ${format(ts, 'p')}`;
+      } else if (isTomorrow(ts)) {
+        subtitle = `Tomorrow at ${format(ts, 'p')}`;
+      }
+
+      const triggerMap: Record<string, any> = {
+        hotWeather: { icon: Sun, color: 'text-yellow-600', bg: 'bg-yellow-100', title: 'Hot & Sunny' },
+        coldWeather: { icon: Cloud, color: 'text-blue-600', bg: 'bg-blue-100', title: 'Cold Day' },
+        rain: { icon: Cloud, color: 'text-blue-600', bg: 'bg-blue-100', title: 'Rainy Weather' },
+        mondayCoffee: { icon: Clock, color: 'text-green-600', bg: 'bg-green-100', title: 'Monday Coffee' },
+      };
+
+      const map = triggerMap[item.triggerType] || { icon: Calendar, color: 'text-gray-600', bg: 'bg-gray-100', title: item.triggerType };
+      return { ...item, subtitle, ...map };
+    });
+
+    setUpcomingList(list);
+  }, [businessData]);
 
   if (loading || loadingBusiness) {
     return (
@@ -261,7 +317,7 @@ const Dashboard = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-500">Next Post</p>
-                      <p className="text-2xl font-bold text-gray-900">2h</p>
+                      <p className="text-2xl font-bold text-gray-900">{nextPostDelta}</p>
                     </div>
                     <div className="w-10 h-10 bg-orange-50 rounded-lg flex items-center justify-center">
                       <Calendar className="h-5 w-5 text-orange-600" />
@@ -626,35 +682,24 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-                      <Clock className="w-4 h-4 text-orange-600" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900">Monday Post</p>
-                      <p className="text-xs text-gray-600">Tomorrow at 8:00 AM</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                      <PartyPopper className="w-4 h-4 text-purple-600" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900">Thadingyut Festival</p>
-                      <p className="text-xs text-gray-600">In 5 days</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <Sun className="w-4 h-4 text-blue-600" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900">Weekend Special</p>
-                      <p className="text-xs text-gray-600">This Saturday</p>
-                    </div>
-                  </div>
+                  {upcomingList.length === 0 ? (
+                    <p className="text-sm text-gray-500">-- no upcoming posts --</p>
+                  ) : (
+                    upcomingList.map((item, idx) => {
+                      const IconComp = item.icon;
+                      return (
+                        <div key={idx} className="flex items-center space-x-3">
+                          <div className={`w-8 h-8 ${item.bg} rounded-lg flex items-center justify-center`}>
+                            <IconComp className={`w-4 h-4 ${item.color}`} />
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-900">{item.title}</p>
+                            <p className="text-xs text-gray-600">{item.subtitle}</p>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </CardContent>
             </Card>
