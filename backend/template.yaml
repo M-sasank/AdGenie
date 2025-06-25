@@ -233,6 +233,8 @@ Resources:
           PUBLIC_BUCKET_NAME: !Ref PrivateS3Bucket
           AD_CONTENT_QUEUE_URL: !Ref AdContentQueue
       Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref BusinessesTable
         - Statement:
             - Effect: Allow
               Action:
@@ -293,4 +295,90 @@ Resources:
             Principal: "*"
             Action: "s3:GetObject"
             Resource: !Sub "${PrivateS3Bucket.Arn}/*"
+
+  # Weather Checker Function
+  CheckWeatherFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/check_weather/
+      Handler: app.lambda_handler
+      Runtime: python3.11
+      Timeout: 60
+      MemorySize: 256
+      Description: Scheduled function that evaluates weather triggers and dispatches EventBridge events.
+      Environment:
+        Variables:
+          BUSINESSES_TABLE: !Ref BusinessesTable
+          BEDROCK_GENERATE_FUNCTION_ARN: !GetAtt BedrockGenerateFunction.Arn
+          SCHEDULER_ROLE_ARN: !GetAtt SchedulerInvokeRole.Arn
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref BusinessesTable
+        - DynamoDBWritePolicy:
+            TableName: !Ref BusinessesTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - events:PutEvents
+                - scheduler:CreateSchedule
+                - scheduler:DeleteSchedule
+                - iam:PassRole
+              Resource: '*'
+      Events:
+        Schedule12h:
+          Type: Schedule
+          Properties:
+            Schedule: rate(12 hours)
+
+  # EventBridge Rule to invoke Bedrock generator on weather triggers
+  WeatherGenerationRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - adgenie.weather
+        detail-type:
+          - "Weather Trigger Activated"
+      Targets:
+        - Arn: !GetAtt BedrockGenerateFunction.Arn
+          Id: BedrockGenerateTarget
+
+  # Permission allowing EventBridge to invoke BedrockGenerateFunction
+  BedrockGenerateInvokeByEvents:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref BedrockGenerateFunction
+      Action: "lambda:InvokeFunction"
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt WeatherGenerationRule.Arn
+
+  # IAM role that EventBridge Scheduler uses to invoke the BedrockGenerateFunction
+  SchedulerInvokeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SchedulerInvokeLambda
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !GetAtt BedrockGenerateFunction.Arn
+
+  # Permission allowing EventBridge Scheduler to invoke BedrockGenerateFunction
+  BedrockGenerateInvokeByScheduler:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref BedrockGenerateFunction
+      Action: "lambda:InvokeFunction"
+      Principal: scheduler.amazonaws.com
+      # SourceArn intentionally omitted to allow any scheduler schedule in this account/region
 

@@ -1,9 +1,15 @@
 import json
 import uuid
 import boto3
+import logging
+from decimal import Decimal
 
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table('Businesses')
+
+# Logger setup
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 def lambda_handler(event, context):
     """
@@ -60,15 +66,28 @@ def lambda_handler(event, context):
                 'body': json.dumps({'error': 'businessName is required.'})
             }
         
+        # Determine if weather triggers are enabled
+        weather_triggers = data.get('triggers', {}).get('weather', {}) if isinstance(data.get('triggers'), dict) else {}
+        weather_flag = 'Y' if any(weather_triggers.values()) else 'N'
+        logger.info("[BUSINESS_CREATE] Weather flag set to %s", weather_flag)
+        
         # Generate a unique businessID
         business_id = f"BUS-{uuid.uuid4()}"
         
+        # Convert numeric coordinates to Decimal if present
+        if isinstance(data.get('latitude'), float):
+            data['latitude'] = Decimal(str(data['latitude']))
+        if isinstance(data.get('longitude'), float):
+            data['longitude'] = Decimal(str(data['longitude']))
+        
         item = {
             'businessID': business_id,
-            **data  # Store all fields from the request body
+            **data,  # Store all fields from the request body
+            'weatherTriggerEnabledFlag': weather_flag
         }
         
         table.put_item(Item=item)
+        logger.info("[BUSINESS_CREATE] Created business %s", business_id)
         
         return {
             'statusCode': 201, # Created

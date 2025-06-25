@@ -219,7 +219,38 @@ def post_to_instagram(image_url: str, caption: str, business_id: str) -> bool:
     media_id = publish_instagram_media(container_id, access_token, ig_user_id)
     if not media_id:
         return False
-    
+
+    # --------------------------------------------------------------------
+    # Record successful publication in Businesses.publishedPosts
+    # --------------------------------------------------------------------
+    try:
+        current_ts = datetime.utcnow().isoformat() + "Z"
+        table.update_item(
+            Key={"businessID": business_id},
+            UpdateExpression=(
+                "SET publishedPosts = list_append(if_not_exists(publishedPosts, :empty), :post)"
+            ),
+            ExpressionAttributeValues={
+                ":empty": [],
+                ":post": [
+                    {
+                        "postID": media_id,
+                        "s3Url": image_url,
+                        "caption": caption,
+                        "timestamp": current_ts,
+                        "status": "published",
+                    }
+                ],
+            },
+        )
+        print(
+            f"INFO: publishedPosts updated for business {business_id} with postID {media_id}"
+        )
+    except Exception as update_exc:
+        print(
+            f"ERROR: Failed to update publishedPosts for {business_id}: {update_exc}"
+        )
+
     print(f"SUCCESS: Instagram post completed for business {business_id}, media ID: {media_id}")
     return True
 
@@ -249,6 +280,7 @@ def lambda_handler(event, context):
             caption = message_body.get('caption')
             image_url = message_body.get('image_url')
             business_id = message_body.get('businessID')
+            schedule_name = message_body.get('scheduleName')
         
             if not caption or not image_url or not business_id:
                 error_msg = "Message is missing required fields (caption, image_url, businessID)"
@@ -263,6 +295,28 @@ def lambda_handler(event, context):
             if success:
                 successful += 1
                 print(f"SUCCESS: Posted to Instagram for business {business_id}")
+
+                # Cleanup upcomingPosts entry if schedule_name provided
+                if schedule_name:
+                    try:
+                        item = table.get_item(Key={"businessID": business_id}, ProjectionExpression="upcomingPosts")
+                        posts = item.get("Item", {}).get("upcomingPosts", [])
+                        idx_to_remove = next(
+                            (i for i, p in enumerate(posts) if p.get("scheduleName") == schedule_name),
+                            None,
+                        )
+                        if idx_to_remove is not None:
+                            table.update_item(
+                                Key={"businessID": business_id},
+                                UpdateExpression=f"REMOVE upcomingPosts[{idx_to_remove}]",
+                            )
+                            print(
+                                f"INFO: Removed upcomingPosts[{idx_to_remove}] for business {business_id}"
+                            )
+                    except Exception as cleanup_exc:
+                        print(
+                            f"ERROR: Failed to cleanup upcomingPosts for {business_id}: {cleanup_exc}"
+                        )
             else:
                 failed += 1
                 error_msg = f"Failed to post to Instagram for business {business_id}"
