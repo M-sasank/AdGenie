@@ -1,4 +1,3 @@
-
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { signUp, signIn, signOut, confirmSignUp, getCurrentUser } from 'aws-amplify/auth';
 import { toast } from 'sonner';
@@ -48,11 +47,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         sub: currentUser.userId,
       };
       setUser(userData);
-      
-      // Redirect to dashboard if user is on home page and authenticated
-      if (location.pathname === '/') {
-        navigate('/dashboard');
-      }
     } catch (error) {
       console.log('No authenticated user found');
       setUser(null);

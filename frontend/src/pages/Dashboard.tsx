@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { businessService } from "@/services/businessService";
 import { toast } from "sonner";
 import EditBusinessModal from "@/components/EditBusinessModal";
+import { BoostNowModal } from '@/components/BoostNowModal';
 import { parseISO, differenceInMinutes, differenceInHours, format, isToday, isTomorrow } from 'date-fns';
 
 const Dashboard = () => {
@@ -20,6 +21,7 @@ const Dashboard = () => {
   const [upcomingList, setUpcomingList] = useState<any[]>([]);
   const [publishedPostsList, setPublishedPostsList] = useState<any[]>([]);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [boostOpen, setBoostOpen] = useState(false);
   const navigate = useNavigate();
 
   // Helper function to check Instagram connection status
@@ -227,48 +229,10 @@ const Dashboard = () => {
     await signOut();
   };
 
-  const handleBoostNow = async () => {
-    if (!businessData?.businessID) {
-      toast.error('Business profile not found. Please complete your setup first.');
-      return;
-    }
-
-    setIsGeneratingBoost(true);
-    try {
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_BASE_URL}/generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          businessID: businessData.businessID
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Server error: ${response.status}`);
-      }
-
-      const result = await response.json();
-      
-      toast.success(
-        <div>
-          <div className="font-medium">Content Generated Successfully!</div>
-          <div className="text-sm text-gray-600 mt-1">
-            Your post has been queued for Instagram and will be published shortly.
-          </div>
-        </div>
-      );
-      
-    } catch (error: any) {
-      console.error('Boost generation error:', error);
-      toast.error(
-        error.message || 'Failed to generate boost post. Please try again.'
-      );
-    } finally {
-      setIsGeneratingBoost(false);
-    }
+  const handleBoostSubmit = (prompt: string) => {
+    // For now, just log or show a toast
+    console.log('Custom post prompt:', prompt);
+    // TODO: Send to Lambda
   };
 
   const handleTriggerToggle = (triggerPath: string, value: boolean) => {
@@ -318,8 +282,7 @@ const Dashboard = () => {
                 </p>
               </div>
               <Button 
-                onClick={handleBoostNow}
-                disabled={isGeneratingBoost}
+                onClick={() => setBoostOpen(true)}
                 className="h-12 px-8 bg-gray-900 hover:bg-gray-800 text-white font-medium rounded-xl transition-all duration-200"
               >
                 {isGeneratingBoost ? (
@@ -758,6 +721,12 @@ const Dashboard = () => {
           onUpdate={handleBusinessUpdate}
         />
       )}
+
+      <BoostNowModal
+        open={boostOpen}
+        onClose={() => setBoostOpen(false)}
+        onSubmit={handleBoostSubmit}
+      />
     </div>
   );
 };
