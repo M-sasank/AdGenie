@@ -68,7 +68,12 @@ def decimal_converter(obj):
     raise TypeError
 
 
-def _generate_and_enqueue(caption: str, business_id: str, image_prompt: str) -> Dict:
+def _generate_and_enqueue(
+    caption: str,
+    business_id: str,
+    image_prompt: str,
+    schedule_name: str | None = None,
+) -> Dict:
     """Generate an image with Bedrock Titan, upload to S3, and enqueue for Instagram posting.
 
     Parameters
@@ -79,6 +84,8 @@ def _generate_and_enqueue(caption: str, business_id: str, image_prompt: str) -> 
         Identifier of the business for which the content is generated.
     image_prompt : str
         Dynamic prompt for image generation.
+    schedule_name : str | None, optional
+        Name of the schedule for which the content is generated, by default None.
 
     Returns
     -------
@@ -149,6 +156,8 @@ def _generate_and_enqueue(caption: str, business_id: str, image_prompt: str) -> 
             "image_url": s3_url,
             "businessID": business_id,
         }
+        if schedule_name is not None:
+            message_body["scheduleName"] = schedule_name
         sqs_resp = sqs_client.send_message(
             QueueUrl=AD_CONTENT_QUEUE_URL,
             MessageBody=json.dumps(message_body),
@@ -180,6 +189,26 @@ def _generate_and_enqueue(caption: str, business_id: str, image_prompt: str) -> 
         return {"statusCode": 500, "body": "Generation failed"}
 
 
+# Helper predicate to determine if an invocation is a weather-trigger event
+# (EventBridge Rule or Scheduler) as opposed to an API Gateway request.
+
+def _is_weather_event(event: dict) -> bool:  # noqa: D401
+    """Return *True* if *event* looks like a weather-trigger invocation.
+
+    Criteria:
+    1. Must *not* contain the ``httpMethod`` key (that key indicates an API Gateway
+       request).
+    2. Either ``source`` equals ``"adgenie.weather"`` **or** the payload contains
+       both ``triggerType`` and ``businessID`` keys (shape used by the Scheduler).
+    """
+    if event.get("httpMethod") is not None:
+        # API Gateway always includes httpMethod; therefore not a weather event.
+        return False
+    if event.get("source") == "adgenie.weather":
+        return True
+    return "triggerType" in event and "businessID" in event
+
+
 def lambda_handler(event, context):
     """Generate image and text using Amazon Bedrock models, upload to S3, and send to SQS queue.
 
@@ -191,17 +220,18 @@ def lambda_handler(event, context):
         "[BEDROCK_GENERATE] lambda_handler entry. Event keys=%s", list(event.keys())
     )
 
-    # EventBridge invocation path ------------------------------------------------
-    if event.get("source") == "adgenie.weather":
+    # Weather event (EventBridge Rule or Scheduler) -----------------------------
+    if _is_weather_event(event):
         logger.info("[BEDROCK_GENERATE] Processing EventBridge trigger")
         logger.info(event)
         try:
-            # Detail arrives as a JSON-encoded string
-            detail = event.get("detail")
+            # Support both EventBridge Rule (has "detail") and Scheduler (flat) payloads
+            detail = event.get("detail") or event
             if isinstance(detail, str):
                 detail = json.loads(detail)
             business_id = detail.get("businessID")
             trigger_type = detail.get("triggerType")
+            schedule_name = detail.get("scheduleName")
 
             logger.info(
                 "[BEDROCK_GENERATE] EventBridge detail. business_id=%s trigger_type=%s",
@@ -392,7 +422,7 @@ def lambda_handler(event, context):
             caption,
         )
 
-        gen_result = _generate_and_enqueue(caption, business_id, image_prompt)
+        gen_result = _generate_and_enqueue(caption, business_id, image_prompt, schedule_name)
         logger.info(
             "[BEDROCK_GENERATE] _generate_and_enqueue returned statusCode=%s",
             gen_result.get("statusCode"),
