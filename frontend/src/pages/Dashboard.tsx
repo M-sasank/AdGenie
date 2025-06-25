@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Bot, Instagram, Zap, Calendar, TrendingUp, Coffee, Sun, Cloud, Clock, Sparkles, PartyPopper, ArrowRight, CheckCircle, Play, Activity, Users, Heart, MessageCircle, Share2, BarChart3, Lightbulb, Edit } from "lucide-react";
+import { Bot, Instagram, Zap, Calendar, TrendingUp, Coffee, Sun, Cloud, CloudRain, Clock, Sparkles, PartyPopper, ArrowRight, CheckCircle, Play, Activity, Users, Heart, MessageCircle, Share2, BarChart3, Lightbulb, Edit } from "lucide-react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { businessService } from "@/services/businessService";
@@ -130,7 +130,7 @@ const Dashboard = () => {
       const triggerMap: Record<string, any> = {
         hotWeather: { icon: Sun, color: 'text-yellow-600', bg: 'bg-yellow-100', title: 'Hot & Sunny' },
         coldWeather: { icon: Cloud, color: 'text-blue-600', bg: 'bg-blue-100', title: 'Cold Day' },
-        rain: { icon: Cloud, color: 'text-blue-600', bg: 'bg-blue-100', title: 'Rainy Weather' },
+        rain: { icon: CloudRain, color: 'text-blue-800', bg: 'bg-blue-100', title: 'Rainy Weather' },
         mondayCoffee: { icon: Clock, color: 'text-green-600', bg: 'bg-green-100', title: 'Monday Coffee' },
       };
 
@@ -453,7 +453,7 @@ const Dashboard = () => {
                       </div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
-                          <Cloud className="w-4 h-4 text-blue-600" />
+                          <CloudRain className="w-4 h-4 text-blue-800" />
                           <span className="text-sm font-medium text-gray-700">Rainy Weather</span>
                         </div>
                         <Switch defaultChecked onCheckedChange={(checked) => handleTriggerToggle('weather.rainy', checked)} />
