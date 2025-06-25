@@ -12,6 +12,7 @@ import { Bot, MapPin, Clock, Coffee, Shirt, Heart, Sparkles, CheckCircle, Buildi
 import { TriggerCard } from '@/components/onboarding/TriggerCard';
 import { businessService } from '@/services/businessService';
 import LocationAutocomplete, { LocationData } from '@/components/LocationAutocomplete';
+import tzLookup from 'tz-lookup';
 
 interface BusinessData {
   businessName: string;
@@ -20,7 +21,9 @@ interface BusinessData {
   longitude: number | null;
   businessType: string;
   brandVoice: string;
-  peakTime: string;
+  openTimeLocal: string;
+  closeTimeLocal: string;
+  timeZone: string;
   products: string;
   triggers: {
     weather: {
@@ -105,10 +108,10 @@ const steps = [
   {
     id: 'peakTime',
     title: 'What are your business hours?',
-    subtitle: 'Perfect timing for maximum impact',
+    subtitle: 'Your opening and closing times',
     description: 'We\'ll schedule your content when your business is open and your audience is most active.',
     icon: Clock,
-    field: 'peakTime' as keyof BusinessData,
+    field: 'openTimeLocal' as keyof BusinessData,
     placeholder: '9:00 AM - 5:00 PM'
   },
   {
@@ -148,7 +151,9 @@ const Onboarding = () => {
     longitude: null,
     businessType: '',
     brandVoice: '',
-    peakTime: '',
+    openTimeLocal: '',
+    closeTimeLocal: '',
+    timeZone: '',
     products: '',
     triggers: {
       weather: {
@@ -225,11 +230,39 @@ const Onboarding = () => {
 
   const isFormStep = !isWelcomeStep && !isCompleteStep && !isTriggersStep;
 
+  // Convert "h:mm AM/PM" -> "HH:mm"
+  const to24Hour = (timeStr: string): string => {
+    const match = timeStr.trim().match(/^(\d{1,2}):(\d{1,2})\s*(AM|PM)$/i);
+    if (!match) return timeStr;
+    let hour = parseInt(match[1], 10);
+    const minute = parseInt(match[2], 10);
+    const period = match[3].toUpperCase();
+    if (period === 'PM' && hour !== 12) hour += 12;
+    if (period === 'AM' && hour === 12) hour = 0;
+    return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+  };
 
+  // Convert "HH:mm" -> "h:mm AM/PM" for display
+  const toDisplay = (time24: string): string => {
+    const match = time24.match(/^(\d{2}):(\d{2})$/);
+    if (!match) return time24;
+    let hour = parseInt(match[1], 10);
+    const minute = match[2];
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+    return `${hour12}:${minute} ${period}`;
+  };
 
   const createBusiness = async (data: BusinessData) => {
-    console.log('Creating business with data:', data);
-    
+    const payload = {
+      ...data,
+      openTimeLocal: to24Hour(data.openTimeLocal),
+      closeTimeLocal: to24Hour(data.closeTimeLocal),
+      userId: user?.sub,
+    };
+
+    console.log('Creating business with local times:', payload.openTimeLocal, payload.closeTimeLocal, payload.timeZone);
+
     const endpoint = `${import.meta.env.VITE_BACKEND_BASE_URL}/businesses`;
 
     const response = await fetch(endpoint, {
@@ -237,10 +270,7 @@ const Onboarding = () => {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        ...data,
-        userId: user?.sub
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -255,19 +285,52 @@ const Onboarding = () => {
     return { success: true };
   };
 
+  // Helper: convert ISO string back to display format "h:mm AM/PM"
+  const fromISOToDisplay = (iso: string): string => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    const hrs = d.getUTCHours();
+    const mins = d.getUTCMinutes().toString().padStart(2, '0');
+    const period = hrs >= 12 ? 'PM' : 'AM';
+    const hrs12 = hrs % 12 === 0 ? 12 : hrs % 12;
+    return `${hrs12}:${mins} ${period}`;
+  };
+
   const handleInputChange = (value: string) => {
+    // Special handling for business hours string "open - close"
+    if (currentStepData.id === 'peakTime') {
+      const parts = value.split(' - ');
+      if (parts.length !== 2) {
+        toast.error('Invalid time range');
+        return;
+      }
+      const [open, close] = parts;
+      setBusinessData(prev => ({ ...prev, openTimeLocal: open.trim(), closeTimeLocal: close.trim() }));
+      return;
+    }
+
     if (currentStepData.field) {
       setBusinessData(prev => ({ ...prev, [currentStepData.field!]: value }));
     }
   };
 
   const handleLocationSelect = (loc: LocationData) => {
+    // Update location details first
     setBusinessData(prev => ({
       ...prev,
       location: loc.formatted_address,
       latitude: loc.latitude,
       longitude: loc.longitude,
     }));
+
+    try {
+      const tz = tzLookup(loc.latitude, loc.longitude);
+      console.log('Detected time zone:', tz);
+      setBusinessData(prev => ({ ...prev, timeZone: tz }));
+    } catch (err) {
+      console.error('Failed to determine time zone:', err);
+    }
   };
 
   const handleTriggerChange = (category: string, trigger: string, value: boolean) => {
@@ -282,8 +345,6 @@ const Onboarding = () => {
       }
     }));
   };
-
-
 
   const handleNext = async () => {
     if (isCompleteStep) {
@@ -300,15 +361,28 @@ const Onboarding = () => {
       return;
     }
 
-    if (isFormStep && currentStepData.field) {
-      const value = businessData[currentStepData.field];
-      if (!value || (currentStepData.id === 'location' && (businessData.latitude === null || businessData.longitude === null))) {
-        toast.error('Please fill in this field to continue');
-        return;
+    if (isFormStep) {
+      if (currentStepData.id === 'peakTime') {
+        if (!businessData.openTimeLocal || !businessData.closeTimeLocal) {
+          toast.error('Please select your opening and closing times');
+          return;
+        }
+        // Convert to 24-hour once, before moving away
+        if (/AM|PM/i.test(businessData.openTimeLocal)) {
+          setBusinessData(prev => ({
+            ...prev,
+            openTimeLocal: to24Hour(prev.openTimeLocal),
+            closeTimeLocal: to24Hour(prev.closeTimeLocal)
+          }));
+        }
+      } else if (currentStepData.field) {
+        const value = businessData[currentStepData.field];
+        if (!value || (currentStepData.id === 'location' && (businessData.latitude === null || businessData.longitude === null))) {
+          toast.error('Please fill in this field to continue');
+          return;
+        }
       }
     }
-
-
 
     setIsAnimating(true);
     setTimeout(() => {
@@ -356,12 +430,13 @@ const Onboarding = () => {
   const renderInput = () => {
     // Special handling for peak time step to use TimePicker with range
     if (currentStepData.id === 'peakTime') {
+      const displayOpen = /AM|PM/i.test(businessData.openTimeLocal) ? businessData.openTimeLocal : toDisplay(businessData.openTimeLocal);
+      const displayClose = /AM|PM/i.test(businessData.closeTimeLocal) ? businessData.closeTimeLocal : toDisplay(businessData.closeTimeLocal);
       return (
         <TimePicker
           label="Business Hours"
-          value={businessData.peakTime}
+          value={`${displayOpen} - ${displayClose}`}
           onChange={(time) => handleInputChange(time)}
-          className="max-w-md mx-auto"
           isRange={true}
         />
       );
@@ -528,8 +603,6 @@ const Onboarding = () => {
     );
   };
 
-
-
   const IconComponent = currentStepData.icon;
 
   return (
@@ -587,8 +660,6 @@ const Onboarding = () => {
                 {renderTriggers()}
               </div>
             )}
-
-
 
             {/* Navigation */}
             <div className="flex items-center justify-between pt-6">
