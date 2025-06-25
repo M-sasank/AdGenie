@@ -8,6 +8,8 @@ import boto3
 import requests
 import logging
 import traceback
+import statistics
+import secrets
 
 # ---------------------------------------------------------------------------
 # Clients initialised outside the handler for connection reuse
@@ -73,12 +75,48 @@ def _get_coordinates(city_name: str) -> Dict[str, float]:
     }
 
 
-def _get_7day_avg_temp(lat: float, lon: float, now_utc: datetime) -> float:
-    """
-    Return the 7-day average temperature in °C for the given coordinates.
+def _get_30day_stats(lat: float, lon: float, now_utc: datetime) -> tuple[float, float]:
+    """Return *(mean, std_dev)* of the past 30-day daily-mean temperature.
 
-    Uses Open-Meteo Archive API with daily mean temperature.
+    Parameters
+    ----------
+    lat, lon : float
+        Geographic coordinates.
+    now_utc : datetime
+        Current UTC time (used to derive date range).
+
+    Returns
+    -------
+    tuple[float, float]
+        Mean temperature and *population* standard deviation (°C). If fewer than
+        two valid data points are available, ``std_dev`` is set to ``0.5`` to
+        ensure some sensitivity.
     """
+    end_date = (now_utc - timedelta(days=1)).date()
+    start_date = end_date - timedelta(days=29)
+    url = (
+        "https://archive-api.open-meteo.com/v1/archive"
+        f"?latitude={lat}&longitude={lon}"
+        f"&start_date={start_date}&end_date={end_date}"
+        "&daily=temperature_2m_mean&timezone=UTC"
+    )
+    logger.info("[CHECK_WEATHER] Fetching 30-day archive: %s", url)
+    resp = HTTP_SESSION.get(url, timeout=10)
+    resp.raise_for_status()
+    temps = resp.json().get("daily", {}).get("temperature_2m_mean", [])
+    temps_clean = [float(t) for t in temps if t is not None]
+    if not temps_clean:
+        raise RuntimeError("Archive data missing")
+    mean_temp = statistics.mean(temps_clean)
+    std_temp = statistics.pstdev(temps_clean) if len(temps_clean) > 1 else 0.0
+    if std_temp == 0:
+        std_temp = 0.5  # enforce minimal sensitivity
+    logger.info("[CHECK_WEATHER] 30-day stats | mean=%.2f°C std=%.2f°C", mean_temp, std_temp)
+    return mean_temp, std_temp
+
+
+def _get_7day_avg_temp(lat: float, lon: float, now_utc: datetime) -> float:
+    """Return the 7-day average temperature in °C for logging purposes."""
     end_date = (now_utc - timedelta(days=1)).date()
     start_date = end_date - timedelta(days=6)
     url = (
@@ -87,7 +125,7 @@ def _get_7day_avg_temp(lat: float, lon: float, now_utc: datetime) -> float:
         f"&start_date={start_date}&end_date={end_date}"
         "&daily=temperature_2m_mean&timezone=UTC"
     )
-    logger.info("[CHECK_WEATHER] Fetching 7-day archive: %s", url)
+    # logger.info("[CHECK_WEATHER] Fetching 7-day archive: %s", url)
     resp = HTTP_SESSION.get(url, timeout=10)
     resp.raise_for_status()
     data = resp.json()
@@ -116,6 +154,15 @@ def _get_next12h_forecast(
     hours = data.get("hourly", {}).get("time", [])
     temps = data.get("hourly", {}).get("temperature_2m", [])
     prec = data.get("hourly", {}).get("precipitation", [])
+
+    # Log raw arrays length and first 12 entries for inspection
+    logger.info(
+        "[CHECK_WEATHER] Raw forecast arrays | len=%s hours_sample=%s temps_sample=%s prec_sample=%s",
+        len(hours),
+        hours[:12],
+        temps[:12],
+        prec[:12],
+    )
 
     # Build list limited to next 12 hours
     forecast: Dict[str, List[Any]] = {
@@ -192,7 +239,10 @@ def _matches_business_preferences(
 
 
 def _first_trigger_index(
-    trigger_name: str, forecast: Dict[str, List[Any]], avg_temp: float
+    trigger_name: str,
+    forecast: Dict[str, List[Any]],
+    mean_temp: float,
+    std_temp: float,
 ) -> int | None:
     """Return earliest index (0-based) at which *trigger_name* condition is met.
 
@@ -202,8 +252,10 @@ def _first_trigger_index(
         One of ``coldWeather``, ``hotWeather``, ``rain``, ``sunAfterRain``.
     forecast : Dict[str, List[Any]]
         Output from :pyfunc:`_get_next12h_forecast`.
-    avg_temp : float
-        7-day historical average temperature.
+    mean_temp : float
+        30-day historical average temperature.
+    std_temp : float
+        Population standard deviation of the past 30-day daily-mean temperature.
 
     Returns
     -------
@@ -213,21 +265,35 @@ def _first_trigger_index(
     temps = forecast["temperature"]
     precs = forecast["precipitation"]
 
+    threshold = 1.5 * std_temp
+
     if trigger_name == "coldWeather":
         for idx, t in enumerate(temps):
-            if t <= avg_temp - 5:
+            delta = mean_temp - t
+            if delta > threshold:
                 logger.info(
-                    "[CHECK_WEATHER] coldWeather first index %s temp=%s", idx, t
+                    "[CHECK_WEATHER] coldWeather first idx=%s temp=%.2f delta=%.2f thresh=%.2f",
+                    idx,
+                    t,
+                    delta,
+                    threshold,
                 )
                 return idx
     elif trigger_name == "hotWeather":
         for idx, t in enumerate(temps):
-            if t >= avg_temp + 5:
-                logger.info("[CHECK_WEATHER] hotWeather first index %s temp=%s", idx, t)
+            delta = t - mean_temp
+            if delta > threshold:
+                logger.info(
+                    "[CHECK_WEATHER] hotWeather first idx=%s temp=%.2f delta=%.2f thresh=%.2f",
+                    idx,
+                    t,
+                    delta,
+                    threshold,
+                )
                 return idx
     elif trigger_name == "rain":
         for idx, p in enumerate(precs):
-            if p > 0:
+            if p > 0.2:
                 logger.info("[CHECK_WEATHER] rain first index %s precip=%s", idx, p)
                 return idx
     return None
@@ -310,12 +376,12 @@ def lambda_handler(event: Dict[str, Any], context):
                 )
                 continue
 
-        # 7-day average temp
+        # 30-day mean & std
         try:
-            avg_temp = _get_7day_avg_temp(lat, lon, now_utc)
+            mean_temp, std_temp = _get_30day_stats(lat, lon, now_utc)
         except Exception as exc:  # noqa: BLE001
             logger.warning(
-                "[CHECK_WEATHER] Archive fetch failed for %s: %s",
+                "[CHECK_WEATHER] Stats fetch failed for %s: %s",
                 business_id,
                 exc,
                 exc_info=True,
@@ -335,7 +401,7 @@ def lambda_handler(event: Dict[str, Any], context):
             continue
 
         for trig_name in ("coldWeather", "hotWeather", "rain"):
-            idx = _first_trigger_index(trig_name, forecast, avg_temp)
+            idx = _first_trigger_index(trig_name, forecast, mean_temp, std_temp)
             if idx is None:
                 logger.info(
                     "[CHECK_WEATHER] Trigger %s not present within 12-h window",
@@ -377,7 +443,12 @@ def lambda_handler(event: Dict[str, Any], context):
                 )
                 continue
 
-            schedule_name = f"adgenie-{business_id}-{trig_name}-{int(datetime.fromisoformat(trigger_time_iso.replace('Z', '+00:00')).timestamp())}"
+            ts_epoch = int(
+                datetime.fromisoformat(trigger_time_iso.replace("Z", "+00:00")).timestamp()
+            )
+            biz8 = business_id[:8]
+            rand4 = secrets.token_hex(2)
+            schedule_name = f"ag-{trig_name}-{biz8}-{ts_epoch}-{rand4}"
 
             try:
                 SCHEDULER.create_schedule(
