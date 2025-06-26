@@ -279,10 +279,29 @@ const Dashboard = () => {
     await signOut();
   };
 
-  const handleBoostSubmit = (prompt: string) => {
-    // For now, just log or show a toast
-    console.log('Custom post prompt:', prompt);
-    // TODO: Send to Lambda
+  const handleBoostSubmit = async (prompt: string) => {
+    if (!businessData?.businessID) {
+      toast.error('Business ID not found.');
+      return;
+    }
+    setIsGeneratingBoost(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_BASE_URL}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessID: businessData.businessID, baseCaption: prompt }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to generate post');
+      }
+      const data = await response.json();
+      toast.success('Boost post generated and queued for Instagram!');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to generate post');
+    } finally {
+      setIsGeneratingBoost(false);
+    }
   };
 
   const handleTriggerToggle = (triggerPath: string, value: boolean) => {

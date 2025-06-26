@@ -504,7 +504,7 @@ def lambda_handler(event, context):
         logger.info("[BEDROCK_GENERATE] Caption generated: %s", caption)
 
         # 2. Generate image using Bedrock image model
-        image_prompt = "A beautiful summer beach with palm trees and clear blue water."
+        image_prompt = body.get("baseCaption") 
         logger.info(
             "[BEDROCK_GENERATE] Invoking image model with prompt length=%s",
             len(image_prompt),
