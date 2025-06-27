@@ -6,6 +6,7 @@ import os
 from decimal import Decimal
 from typing import Dict
 import logging
+import random
 
 # Initialize clients
 sqs_client = boto3.client("sqs")
@@ -110,10 +111,13 @@ def _generate_and_enqueue(
                 "body": "Server misconfiguration: bucket name missing",
             }
 
-        # Ensure image_prompt length within model limit (512 chars)
+        # Safeguard against empty prompt and enforce model limit
+        if not image_prompt:
+            image_prompt = "Lifestyle photo for social media marketing."
         if len(image_prompt) > 512:
             logger.info("[BEDROCK_GENERATE] Truncating image_prompt from %s to 512 characters", len(image_prompt))
             image_prompt = image_prompt[:512]
+        cfg_scale = round(random.uniform(6.0, 9.0), 1)
 
         titan_body = json.dumps(
             {
@@ -123,7 +127,7 @@ def _generate_and_enqueue(
                     "numberOfImages": 1,
                     "height": 1024,
                     "width": 1024,
-                    "cfgScale": 8.0,
+                    "cfgScale": cfg_scale,
                 },
             }
         )
@@ -229,6 +233,51 @@ def _is_weather_event(event: dict) -> bool:  # noqa: D401
     if event.get("source") == "adgenie.weather":
         return True
     return "triggerType" in event and "businessID" in event
+
+
+def _random_photo_style() -> str:
+    """Return a randomized photography style suffix to diversify image prompts.
+
+    The returned string includes camera type, lens, composition style, colour palette,
+    and lighting description. Adding this to every prompt injects controlled
+    randomness so that consecutive generations do not look identical while
+    remaining contextually relevant.
+    """
+    camera_types = [
+        "DSLR", "mirrorless camera", "medium-format camera", "smartphone camera"
+    ]
+    lenses = [
+        "50 mm prime lens", "35 mm wide-angle lens", "85 mm portrait lens",
+        "24-70 mm zoom lens", "macro lens"
+    ]
+    compositions = [
+        "flat-lay composition", "overhead perspective", "cinematic close-up",
+        "rule-of-thirds framing", "lifestyle candid shot"
+    ]
+    colour_palettes = [
+        "muted pastel tones", "vibrant saturated colours",
+        "warm earthy hues", "high-contrast black and white",
+        "cool monochrome blues"
+    ]
+    lighting_styles = [
+        "soft diffused lighting", "golden hour backlight",
+        "dramatic chiaroscuro", "neon accent lighting",
+        "studio softbox illumination"
+    ]
+
+    return (
+        "Shot with a "
+        + random.choice(camera_types)
+        + " using a "
+        + random.choice(lenses)
+        + ", "
+        + random.choice(compositions)
+        + ", "
+        + random.choice(colour_palettes)
+        + ", "
+        + random.choice(lighting_styles)
+        + "."
+    )
 
 
 def lambda_handler(event, context):
@@ -381,6 +430,7 @@ def lambda_handler(event, context):
 
         if not first_product:
             first_product = products_list[0] if products_list else "signature item"
+        style_suffix = _random_photo_style()
         if trigger_type == "hotWeather":
             image_prompt = (
                 f"A sun-drenched, Instagram-worthy {brand_voice.lower()} {biz.get('businessType', 'shop')} in {location} "
@@ -393,7 +443,8 @@ def lambda_handler(event, context):
                 )
                 + ". Fresh mint garnish, condensation droplets, marble countertops, potted plants. "
                 f"Bright, airy atmosphere with tropical vibes. "
-                f"Professional food photography style, shallow depth of field, warm natural lighting."
+                f"Professional food photography style, shallow depth of field, warm natural lighting. "
+                + style_suffix
             )
 
         elif trigger_type == "coldWeather":
@@ -408,7 +459,8 @@ def lambda_handler(event, context):
                 )
                 + ". Flickering candles, fairy lights, "
                 f"rain-spotted windows creating bokeh effects. Hygge aesthetic with rich textures, "
-                f"cinnamon sticks and autumn leaves as props. Cinematic lighting, cozy atmosphere."
+                f"cinnamon sticks and autumn leaves as props. Cinematic lighting, cozy atmosphere. "
+                + style_suffix
             )
 
         elif trigger_type == "rain":
@@ -422,7 +474,8 @@ def lambda_handler(event, context):
                     else ""
                 )
                 + ". Rain droplets creating beautiful patterns on glass, soft jazz ambiance, warm pendant lighting casting golden pools. "
-                f"Moody photography with rich shadows and highlights, vintage coffee shop aesthetic."
+                f"Moody photography with rich shadows and highlights, vintage coffee shop aesthetic. "
+                + style_suffix
             )
 
         else:  # sunAfterRain
@@ -434,7 +487,8 @@ def lambda_handler(event, context):
                 + f" on a beautifully set table. Rainbow in the background, puddles creating mirror effects, "
                 f"potted flowers glistening with raindrops. "
                 f"Hopeful, uplifting atmosphere with vibrant colors and dramatic sky. "
-                f"Professional lifestyle photography with perfect composition."
+                f"Professional lifestyle photography with perfect composition. "
+                + style_suffix
             )
 
         logger.info(
@@ -529,7 +583,10 @@ def lambda_handler(event, context):
         logger.info("[BEDROCK_GENERATE] Caption generated: %s", caption)
 
         # 2. Generate image using Bedrock image model
-        image_prompt = body.get("baseCaption") 
+        image_prompt = body.get("baseCaption")
+        # Provide a sensible default if client omitted baseCaption
+        if not image_prompt:
+            image_prompt = "Engaging product shot for social media advertising."
         logger.info(
             "[BEDROCK_GENERATE] Invoking image model with prompt length=%s",
             len(image_prompt),
@@ -540,6 +597,7 @@ def lambda_handler(event, context):
         if len(image_prompt) > 512:
             logger.info("[BEDROCK_GENERATE] Truncating image_prompt from %s to 512 characters", len(image_prompt))
             image_prompt = image_prompt[:512]
+        cfg_scale = round(random.uniform(6.0, 9.0), 1)
 
         titan_body = json.dumps(
             {
@@ -549,7 +607,7 @@ def lambda_handler(event, context):
                     "numberOfImages": 1,
                     "height": 1024,
                     "width": 1024,
-                    "cfgScale": 8.0,
+                    "cfgScale": cfg_scale,
                 },
             }
         )
