@@ -14,6 +14,10 @@ logger.setLevel(logging.INFO)
 sqs_client = boto3.client('sqs')
 AD_CONTENT_QUEUE_URL = os.environ.get('AD_CONTENT_QUEUE_URL')
 
+# AWS SDK
+dynamodb = boto3.resource("dynamodb")
+BUSINESSES_TABLE = dynamodb.Table("Businesses")
+
 def decimal_converter(obj):
     """Convert Decimal types to int or float for JSON serialization
     
@@ -70,6 +74,16 @@ def lambda_handler(event, context):
                 'body': json.dumps({'error': 'businessID and customPrompt are required.'})
             }
 
+        # Fetch business details to personalise caption
+        business_name = "Your Business"
+        try:
+            biz_resp = BUSINESSES_TABLE.get_item(Key={"businessID": business_id})
+            biz = biz_resp.get("Item", {})
+            business_name = biz.get("businessName", business_name)
+            logger.info("[AD_GENERATION] Business lookup success. business_name=%s", business_name)
+        except Exception as lookup_exc:  # noqa: BLE001
+            logger.warning("[AD_GENERATION] Could not fetch business %s: %s", business_id, lookup_exc)
+
         bedrock = boto3.client('bedrock-runtime')
         s3 = boto3.client('s3')
         BUCKET_NAME = os.environ.get('PUBLIC_BUCKET_NAME')
@@ -115,20 +129,28 @@ def lambda_handler(event, context):
         # 2. Generate caption using Claude
         logger.info("[AD_GENERATION] Invoking caption model")
         caption_model_id = "anthropic.claude-3-sonnet-20240229-v1:0"
+
+        caption_instruction = (
+            f"Compose a concise Instagram caption (20-25 words) for the following promotion: {custom_prompt}. "
+            f"Incorporate the business name '{business_name}'. Use an engaging tone matching the offer. "
+            "Add exactly 3 relevant hashtags at the end. Do NOT include disclaimers, terms & conditions, or placeholder text. "
+            "Return ONLY the caption text."
+        )
+
         caption_response = bedrock.invoke_model(
             modelId=caption_model_id,
             contentType="application/json",
             accept="application/json",
             body=json.dumps({
                 "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 256,
+                "max_tokens": 128,
                 "messages": [
-                    {"role": "user", "content": custom_prompt}
+                    {"role": "user", "content": caption_instruction}
                 ]
             })
         )
-        caption_body = json.loads(caption_response['body'].read().decode('utf-8'))
-        caption = caption_body['content'][0]['text']
+        caption_body = json.loads(caption_response["body"].read().decode("utf-8"))
+        caption = caption_body["content"][0]["text"].strip()
         logger.info("[AD_GENERATION] Caption generated. len=%s preview=%s", len(caption), caption[:120])
 
         # 3. Generate image using Titan
