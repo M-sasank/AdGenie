@@ -103,6 +103,17 @@ def _generate_and_enqueue(
         bedrock = boto3.client("bedrock-runtime")
         s3 = boto3.client("s3")
         BUCKET_NAME = os.environ.get("PUBLIC_BUCKET_NAME")
+        if not BUCKET_NAME:
+            logger.error("[BEDROCK_GENERATE] PUBLIC_BUCKET_NAME environment variable not set")
+            return {
+                "statusCode": 500,
+                "body": "Server misconfiguration: bucket name missing",
+            }
+
+        # Ensure image_prompt length within model limit (512 chars)
+        if len(image_prompt) > 512:
+            logger.info("[BEDROCK_GENERATE] Truncating image_prompt from %s to 512 characters", len(image_prompt))
+            image_prompt = image_prompt[:512]
 
         titan_body = json.dumps(
             {
@@ -131,7 +142,10 @@ def _generate_and_enqueue(
 
         image_data = image_response["body"].read()
         image_json = json.loads(image_data)
-        image_base64 = image_json["images"][0]
+        images_list = image_json.get("images") or []
+        if not images_list:
+            raise ValueError("Image generator returned no images")
+        image_base64 = images_list[0]
 
         # Upload image to S3
         image_bytes = base64.b64decode(image_base64)
@@ -149,7 +163,12 @@ def _generate_and_enqueue(
             image_key,
         )
 
-        s3_url = f"https://{BUCKET_NAME}.s3.amazonaws.com/{image_key}"
+        # Generate presigned URL valid for 6 hours (Instagram requires publicly accessible URL)
+        s3_url = s3.generate_presigned_url(
+            ClientMethod="get_object",
+            Params={"Bucket": BUCKET_NAME, "Key": image_key},
+            ExpiresIn=21600,  # 6 hours
+        )
 
         # Enqueue for Instagram posting
         message_body = {
@@ -467,6 +486,12 @@ def lambda_handler(event, context):
         bedrock = boto3.client("bedrock-runtime")
         s3 = boto3.client("s3")
         BUCKET_NAME = os.environ.get("PUBLIC_BUCKET_NAME")
+        if not BUCKET_NAME:
+            logger.error("[BEDROCK_GENERATE] PUBLIC_BUCKET_NAME environment variable not set")
+            return {
+                "statusCode": 500,
+                "body": "Server misconfiguration: bucket name missing",
+            }
 
         # 1. Generate caption using Claude 3 Sonnet
         text_prompt = (
@@ -511,6 +536,11 @@ def lambda_handler(event, context):
         )
         image_model_id = "amazon.titan-image-generator-v1"
 
+        # Ensure image_prompt length within model limit (512 chars)
+        if len(image_prompt) > 512:
+            logger.info("[BEDROCK_GENERATE] Truncating image_prompt from %s to 512 characters", len(image_prompt))
+            image_prompt = image_prompt[:512]
+
         titan_body = json.dumps(
             {
                 "taskType": "TEXT_IMAGE",
@@ -533,7 +563,10 @@ def lambda_handler(event, context):
 
         image_data = image_response["body"].read()
         image_json = json.loads(image_data)
-        image_base64 = image_json["images"][0]
+        images_list = image_json.get("images") or []
+        if not images_list:
+            raise ValueError("Image generator returned no images")
+        image_base64 = images_list[0]
 
         # 3. Upload image to S3
         image_bytes = base64.b64decode(image_base64)
@@ -547,7 +580,12 @@ def lambda_handler(event, context):
             # ACL='public-read'
         )
 
-        s3_url = f"https://{BUCKET_NAME}.s3.amazonaws.com/{image_key}"
+        # Generate presigned URL valid for 6 hours (Instagram requires publicly accessible URL)
+        s3_url = s3.generate_presigned_url(
+            ClientMethod="get_object",
+            Params={"Bucket": BUCKET_NAME, "Key": image_key},
+            ExpiresIn=21600,  # 6 hours
+        )
 
         # 4. Send message to SQS queue for Instagram posting
         logger.info(

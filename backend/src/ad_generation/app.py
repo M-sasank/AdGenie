@@ -4,6 +4,11 @@ import uuid
 import json
 import os
 from decimal import Decimal
+import logging
+
+# Logger configuration
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 # Initialize clients
 sqs_client = boto3.client('sqs')
@@ -34,6 +39,8 @@ def lambda_handler(event, context):
     :return: HTTP response with S3 URL, caption, and queue status
     :rtype: dict
     """
+    logger.info("[AD_GENERATION] Lambda invoked. event_keys=%s", list(event.keys()))
+
     cors_headers = {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
@@ -50,7 +57,9 @@ def lambda_handler(event, context):
 
     try:
         # Parse request body to get businessID and customPrompt
-        body = json.loads(event.get('body', '{}'))
+        raw_body = event.get('body') or '{}'
+        body = json.loads(raw_body)
+        logger.info("[AD_GENERATION] Parsed body: %s", body)
         business_id = body.get('businessID')
         custom_prompt = body.get('customPrompt', '').strip()
         
@@ -64,12 +73,23 @@ def lambda_handler(event, context):
         bedrock = boto3.client('bedrock-runtime')
         s3 = boto3.client('s3')
         BUCKET_NAME = os.environ.get('PUBLIC_BUCKET_NAME')
+        if not BUCKET_NAME:
+            logger.error("[AD_GENERATION] PUBLIC_BUCKET_NAME environment variable not set")
+            return {
+                'statusCode': 500,
+                'headers': {**cors_headers, 'Content-Type': 'application/json'},
+                'body': json.dumps({'error': 'Server misconfiguration: bucket name missing'})
+            }
 
         # 1. Rewrite prompt for image generation using Claude
+        logger.info("[AD_GENERATION] Invoking rewrite model. custom_prompt_len=%s", len(custom_prompt))
         rewrite_system_prompt = (
-            "Rewrite the following offer or announcement as a visual scene description for an AI image generator. "
-            "Do not include any text, numbers, or offers. Focus on the mood, setting, and occasion."
+            "You are a helpful assistant that rewrites a marketing offer or announcement into a vivid scene description "
+            "suitable as an input prompt for an AI image generator. "
+            "Constraints: 1) Describe only the visual scene, mood, and elements. 2) Do NOT include any promotional text, numbers, offers, or hashtags. "
+            "3) Return ONLY the rewritten scene description with no extra commentary or formatting."
         )
+
         rewrite_model_id = "anthropic.claude-3-sonnet-20240229-v1:0"
         rewrite_response = bedrock.invoke_model(
             modelId=rewrite_model_id,
@@ -79,15 +99,21 @@ def lambda_handler(event, context):
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": 128,
                 "messages": [
-                    {"role": "system", "content": rewrite_system_prompt},
-                    {"role": "user", "content": custom_prompt}
+                    {"role": "user", "content": f"{rewrite_system_prompt}\n\n{custom_prompt}"}
                 ]
             })
         )
         rewrite_body = json.loads(rewrite_response['body'].read().decode('utf-8'))
-        image_prompt = rewrite_body['content'][0]['text']
+        image_prompt = rewrite_body['content'][0]['text'].strip()
+        logger.info("[AD_GENERATION] Rewrite model produced image_prompt_len=%s", len(image_prompt))
+
+        # Ensure Titan prompt length <= 512 chars
+        if len(image_prompt) > 512:
+            logger.info("[AD_GENERATION] Truncating image_prompt from %s to 512 characters", len(image_prompt))
+            image_prompt = image_prompt[:512]
 
         # 2. Generate caption using Claude
+        logger.info("[AD_GENERATION] Invoking caption model")
         caption_model_id = "anthropic.claude-3-sonnet-20240229-v1:0"
         caption_response = bedrock.invoke_model(
             modelId=caption_model_id,
@@ -103,8 +129,10 @@ def lambda_handler(event, context):
         )
         caption_body = json.loads(caption_response['body'].read().decode('utf-8'))
         caption = caption_body['content'][0]['text']
+        logger.info("[AD_GENERATION] Caption generated. len=%s preview=%s", len(caption), caption[:120])
 
         # 3. Generate image using Titan
+        logger.info("[AD_GENERATION] Invoking Titan image model with prompt_len=%s", len(image_prompt))
         image_model_id = "amazon.titan-image-generator-v2:0"
         titan_body = json.dumps({
             "taskType": "TEXT_IMAGE",
@@ -125,8 +153,13 @@ def lambda_handler(event, context):
             body=titan_body
         )
         image_data = image_response['body'].read()
+        logger.info("[AD_GENERATION] Image model response received")
         image_json = json.loads(image_data)
-        image_base64 = image_json['images'][0]
+        logger.info("[AD_GENERATION] Raw image model JSON: %s", image_json)
+        images_list = image_json.get('images') or []
+        if not images_list:
+            raise ValueError("Image generator returned no images")
+        image_base64 = images_list[0]
         image_bytes = base64.b64decode(image_base64)
         image_key = f"generated-images/{uuid.uuid4()}.png"
         
@@ -138,10 +171,16 @@ def lambda_handler(event, context):
             # ACL='public-read'
         )
         
-        s3_url = f"https://{BUCKET_NAME}.s3.amazonaws.com/{image_key}"
+        logger.info("[AD_GENERATION] Uploaded image to S3 bucket=%s key=%s", BUCKET_NAME, image_key)
+        # Generate presigned URL valid for 6 hours so Instagram can fetch
+        s3_url = s3.generate_presigned_url(
+            ClientMethod="get_object",
+            Params={"Bucket": BUCKET_NAME, "Key": image_key},
+            ExpiresIn=21600,
+        )
 
         # 4. Send message to SQS queue for Instagram posting
-        print(f"Sending content to queue: {AD_CONTENT_QUEUE_URL}")
+        logger.info("[AD_GENERATION] Sending content to SQS queue: %s", AD_CONTENT_QUEUE_URL)
         
         message_body = {
             'caption': caption,
@@ -149,10 +188,12 @@ def lambda_handler(event, context):
             'businessID': business_id
         }
         
-        sqs_client.send_message(
+        sqs_resp = sqs_client.send_message(
             QueueUrl=AD_CONTENT_QUEUE_URL,
             MessageBody=json.dumps(message_body)
         )
+
+        logger.info("[AD_GENERATION] Message sent to SQS. MessageId=%s", sqs_resp.get('MessageId'))
 
         return {
             'statusCode': 200,
@@ -171,7 +212,7 @@ def lambda_handler(event, context):
             'body': json.dumps({'error': 'Invalid JSON in request body.'})
         }
     except Exception as e:
-        print(f"Error in bedrock_generate: {e}")
+        logger.exception("[AD_GENERATION] Unhandled exception: %s", e)
         return {
             'statusCode': 500,
             'headers': {**cors_headers, 'Content-Type': 'application/json'},

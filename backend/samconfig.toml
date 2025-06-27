@@ -1,8 +1,8 @@
 version = 0.1
 [default.deploy.parameters]
-stack_name = "AdGenie-backend"
+stack_name = "AdGenie-backend2"
 resolve_s3 = true
-s3_prefix = "AdGenie-backend"
+s3_prefix = "AdGenie-backend2"
 region = "us-east-1"
 confirm_changeset = true
 capabilities = "CAPABILITY_IAM"

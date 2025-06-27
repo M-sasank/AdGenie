@@ -286,10 +286,10 @@ const Dashboard = () => {
     }
     setIsGeneratingBoost(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_BASE_URL}/generate`, {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_BASE_URL}/manual-test-post`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessID: businessData.businessID, baseCaption: prompt }),
+        body: JSON.stringify({ businessID: businessData.businessID, customPrompt: prompt }),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
