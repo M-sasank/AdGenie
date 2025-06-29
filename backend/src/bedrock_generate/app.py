@@ -322,6 +322,8 @@ def lambda_handler(event, context):
             "rain": "Don't let the rain stop you - shop from home!",
             "sunAfterRain": "Perfect day for outdoor activities!",
             "hotWeather": "Beat the heat with our cooling products!",
+            "payday": "Treat yourself with our special payday delights!",
+            "weekend": "Kick off the weekend with our fresh picks!",
         }
 
         # Fetch business details
@@ -357,7 +359,9 @@ def lambda_handler(event, context):
             "coldWeather": "a chilly day",
             "rain": "rainy weather",
             "sunAfterRain": "a sunny day just after rain",
-        }.get(trigger_type, "the given weather")
+            "payday": "payday celebration",
+            "weekend": "a relaxed weekend mood",
+        }.get(trigger_type, "the given occasion")
 
         json_prompt = f"""Generate a JSON response for a social media post. Follow this exact schema and always respond with a JSON object:
             {{
@@ -377,10 +381,12 @@ def lambda_handler(event, context):
             1. Select EXACTLY 2 products that match the weather
             2. Cold/rainy weather = hot/warm items only (coffee, soup, hot chocolate)
             3. Hot weather = cold items only (iced drinks, ice cream, salads)
-            4. Choose complementary products (coffee + pastry, soup + bread)
-            5. Caption must be 20-25 words maximum
-            6. Include exactly 3 hashtags at the end after a caption
-            7. Use {brand_voice} tone throughout
+            4. Payday = indulgent/premium items (signature desserts, specialty drinks)
+            5. Weekend = leisure/brunch items (pancakes, smoothies)
+            6. Choose complementary products (coffee + pastry, soup + bread)
+            7. Caption must be 20-25 words maximum
+            8. Include exactly 3 hashtags at the end after a caption
+            9. Use {brand_voice} tone throughout
             
             """
 
@@ -475,6 +481,26 @@ def lambda_handler(event, context):
                 )
                 + ". Rain droplets creating beautiful patterns on glass, soft jazz ambiance, warm pendant lighting casting golden pools. "
                 f"Moody photography with rich shadows and highlights, vintage coffee shop aesthetic. "
+                + style_suffix
+            )
+
+        elif trigger_type == "payday":
+            image_prompt = (
+                f"A celebratory {brand_voice.lower()} {biz.get('businessType', 'store')} in {location} bursting with payday excitement. "
+                f"Eye-catching display of {first_product} glistening under accent lights"
+                + (f" alongside luxurious {second_product}" if second_product else "")
+                + ". Confetti elements, sleek marble counters, golden colour accents conveying luxury and reward. "
+                f"High-energy atmosphere with smiling customers treating themselves. "
+                f"Professional commercial photography, crisp focus, vibrant colours. "
+                + style_suffix
+            )
+
+        elif trigger_type == "weekend":
+            image_prompt = (
+                f"A laid-back weekend scene at {business_name} in {location}. Sunlit patio seating with rustic wooden tables showcasing {first_product}"
+                + (f" and {second_product}" if second_product else "")
+                + ". People chatting leisurely, potted herbs, soft linen napkins fluttering in a gentle breeze. "
+                f"Warm natural light, candid lifestyle vibe, shallow depth of field. "
                 + style_suffix
             )
 

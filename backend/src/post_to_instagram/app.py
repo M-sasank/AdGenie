@@ -2,6 +2,7 @@ import json
 import boto3
 import requests
 import time
+import logging
 from datetime import datetime
 from urllib.parse import quote_plus
 
@@ -11,6 +12,11 @@ table = dynamodb.Table('Businesses')
 
 # Instagram API constants
 INSTAGRAM_API_BASE = "https://graph.instagram.com/v18.0"
+
+# Logger setup
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+REQUEST_TIMEOUT = 25 # seconds
 
 def get_business_instagram_token(business_id: str) -> tuple[str, str] | tuple[None, None]:
     """Retrieve Instagram access token and user ID for a business.
@@ -24,7 +30,7 @@ def get_business_instagram_token(business_id: str) -> tuple[str, str] | tuple[No
         response = table.get_item(Key={'businessID': business_id})
         
         if 'Item' not in response:
-            print(f"ERROR: Business {business_id} not found in database")
+            logger.error(f"ERROR: Business {business_id} not found in database")
             return None, None
         
         business_data = response['Item']
@@ -32,7 +38,7 @@ def get_business_instagram_token(business_id: str) -> tuple[str, str] | tuple[No
         instagram = social_media.get('instagram', {})
         
         if not instagram.get('connected', False):
-            print(f"ERROR: Instagram not connected for business {business_id}")
+            logger.error(f"ERROR: Instagram not connected for business {business_id}")
             return None, None
         
         token_details = instagram.get('tokenDetails', {})
@@ -40,7 +46,7 @@ def get_business_instagram_token(business_id: str) -> tuple[str, str] | tuple[No
         instagram_user_id = token_details.get('instagramUserId')
         
         if not access_token or not instagram_user_id:
-            print(f"ERROR: Missing Instagram credentials for business {business_id}")
+            logger.error(f"ERROR: Missing Instagram credentials for business {business_id}")
             return None, None
         
         # Check token expiration
@@ -48,14 +54,14 @@ def get_business_instagram_token(business_id: str) -> tuple[str, str] | tuple[No
         if expires_at:
             expiry_date = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
             if datetime.now(expiry_date.tzinfo) >= expiry_date:
-                print(f"ERROR: Instagram token expired for business {business_id}")
+                logger.error(f"ERROR: Instagram token expired for business {business_id}")
                 return None, None
         
-        print(f"SUCCESS: Retrieved Instagram credentials for business {business_id}")
+        logger.info(f"SUCCESS: Retrieved Instagram credentials for business {business_id}")
         return access_token, instagram_user_id
         
     except Exception as e:
-        print(f"ERROR: Failed to retrieve Instagram token for business {business_id}: {str(e)}")
+        logger.exception(f"ERROR: Failed to retrieve Instagram token for business {business_id}: {str(e)}")
         return None, None
 
 def create_instagram_media_container(image_url: str, caption: str, access_token: str, ig_user_id: str) -> str | None:
@@ -81,19 +87,19 @@ def create_instagram_media_container(image_url: str, caption: str, access_token:
         }
         
         response = requests.post(url, params=params)
-        print(f"Media container creation response: {response.status_code} - {response.text}")
+        logger.info("[POST_IG] create_container response %s - %s", response.status_code, response.text)
         
         if response.status_code == 200:
             result = response.json()
             container_id = result.get('id')
-            print(f"SUCCESS: Created media container {container_id}")
+            logger.info("[POST_IG] Created media container %s", container_id)
             return container_id
         else:
-            print(f"ERROR: Failed to create media container: {response.text}")
+            logger.error("[POST_IG] Failed to create media container: %s", response.text)
             return None
             
     except Exception as e:
-        print(f"ERROR: Exception during media container creation: {str(e)}")
+        logger.exception("[POST_IG] Exception during media container creation: %s", e)
         return None
 
 def poll_container_status(container_id: str, access_token: str, max_attempts: int = 10) -> str:
@@ -125,28 +131,28 @@ def poll_container_status(container_id: str, access_token: str, max_attempts: in
                 result = response.json()
                 status = result.get('status_code', 'UNKNOWN')
                 
-                print(f"Container {container_id} status check {attempt + 1}: {status}")
+                logger.info("[POST_IG] Container %s status %s", container_id, status)
                 
                 if status == 'FINISHED':
-                    print(f"SUCCESS: Container {container_id} is ready for publishing")
+                    logger.info("[POST_IG] Container %s ready", container_id)
                     return status
                 elif status == 'IN_PROGRESS':
                     # Exponential backoff
                     delay = 3 * (2 ** attempt)
-                    print(f"Container {container_id} still processing, waiting {delay}s...")
+                    logger.info("[POST_IG] Container %s processing, wait %s s", container_id, delay)
                     time.sleep(delay)
                 else:
-                    print(f"ERROR: Container {container_id} has unexpected status: {status}")
+                    logger.error("[POST_IG] Container %s unexpected status %s", container_id, status)
                     return status
             else:
-                print(f"ERROR: Failed to check container status: {response.text}")
+                logger.error("[POST_IG] Failed to check status: %s", response.text)
                 return 'ERROR'
         
-        print(f"ERROR: Container {container_id} polling timed out after {max_attempts} attempts")
+        logger.error("[POST_IG] Container %s polling timed out", container_id)
         return 'TIMEOUT'
         
     except Exception as e:
-        print(f"ERROR: Exception during status polling: {str(e)}")
+        logger.exception("[POST_IG] Exception during polling: %s", e)
         return 'ERROR'
 
 def publish_instagram_media(container_id: str, access_token: str, ig_user_id: str) -> str | None:
@@ -169,19 +175,19 @@ def publish_instagram_media(container_id: str, access_token: str, ig_user_id: st
         }
         
         response = requests.post(url, params=params)
-        print(f"Media publish response: {response.status_code} - {response.text}")
+        logger.info("[POST_IG] publish response %s - %s", response.status_code, response.text)
         
         if response.status_code == 200:
             result = response.json()
             media_id = result.get('id')
-            print(f"SUCCESS: Published media with ID {media_id}")
+            logger.info("[POST_IG] Published media %s", media_id)
             return media_id
         else:
-            print(f"ERROR: Failed to publish media: {response.text}")
+            logger.error("[POST_IG] Failed to publish media: %s", response.text)
             return None
             
     except Exception as e:
-        print(f"ERROR: Exception during media publishing: {str(e)}")
+        logger.exception("[POST_IG] Exception during publish: %s", e)
         return None
 
 def get_instagram_permalink(media_id: str, access_token: str) -> str | None:
@@ -202,19 +208,19 @@ def get_instagram_permalink(media_id: str, access_token: str) -> str | None:
         }
         
         response = requests.get(url, params=params)
-        print(f"Permalink retrieval response: {response.status_code} - {response.text}")
+        logger.info("[POST_IG] permalink response %s - %s", response.status_code, response.text)
         
         if response.status_code == 200:
             result = response.json()
             permalink = result.get('permalink')
-            print(f"SUCCESS: Retrieved permalink {permalink}")
+            logger.info("[POST_IG] Retrieved permalink %s", permalink)
             return permalink
         else:
-            print(f"ERROR: Failed to retrieve permalink: {response.text}")
+            logger.error("[POST_IG] Failed to retrieve permalink: %s", response.text)
             return None
             
     except Exception as e:
-        print(f"ERROR: Exception during permalink retrieval: {str(e)}")
+        logger.exception("[POST_IG] Exception during permalink retrieval: %s", e)
         return None
 
 def post_to_instagram(image_url: str, caption: str, business_id: str, trigger_category: str | None = None) -> bool:
@@ -230,7 +236,7 @@ def post_to_instagram(image_url: str, caption: str, business_id: str, trigger_ca
     :return: True if successful, False otherwise
     :rtype: bool
     """
-    print(f"Starting Instagram post for business {business_id}")
+    logger.info("[POST_IG] Start post workflow for business %s", business_id)
     
     # Get Instagram credentials
     access_token, ig_user_id = get_business_instagram_token(business_id)
@@ -245,7 +251,7 @@ def post_to_instagram(image_url: str, caption: str, business_id: str, trigger_ca
     # Poll until container is ready
     status = poll_container_status(container_id, access_token)
     if status != 'FINISHED':
-        print(f"ERROR: Container not ready for publishing, final status: {status}")
+        logger.error(f"ERROR: Container not ready for publishing, final status: {status}")
         return False
     
     # Publish the media
@@ -285,15 +291,15 @@ def post_to_instagram(image_url: str, caption: str, business_id: str, trigger_ca
                 ":post": [post_record],
             },
         )
-        print(
+        logger.info(
             f"INFO: publishedPosts updated for business {business_id} with postID {media_id}"
         )
     except Exception as update_exc:
-        print(
+        logger.exception(
             f"ERROR: Failed to update publishedPosts for {business_id}: {update_exc}"
         )
 
-    print(f"SUCCESS: Instagram post completed for business {business_id}, media ID: {media_id}")
+    logger.info("[POST_IG] Post completed for business %s mediaID %s", business_id, media_id)
     return True
 
 def lambda_handler(event, context):
@@ -317,7 +323,7 @@ def lambda_handler(event, context):
         
         try:
             message_body = json.loads(record['body'])
-            print(f"Processing message: {json.dumps(message_body)}")
+            logger.info("[POST_IG] Processing message %s", json.dumps(message_body))
             
             caption = message_body.get('caption')
             image_url = message_body.get('image_url')
@@ -327,7 +333,7 @@ def lambda_handler(event, context):
         
             if not caption or not image_url or not business_id:
                 error_msg = "Message is missing required fields (caption, image_url, businessID)"
-                print(f"ERROR: {error_msg}")
+                logger.error(f"ERROR: {error_msg}")
                 errors.append(error_msg)
                 failed += 1
                 continue
@@ -337,7 +343,7 @@ def lambda_handler(event, context):
             
             if success:
                 successful += 1
-                print(f"SUCCESS: Posted to Instagram for business {business_id}")
+                logger.info(f"SUCCESS: Posted to Instagram for business {business_id}")
 
                 # Cleanup upcomingPosts entry if schedule_name provided
                 if schedule_name:
@@ -353,11 +359,11 @@ def lambda_handler(event, context):
                                 Key={"businessID": business_id},
                                 UpdateExpression=f"REMOVE upcomingPosts[{idx_to_remove}]",
                             )
-                            print(
+                            logger.info(
                                 f"INFO: Removed upcomingPosts[{idx_to_remove}] for business {business_id}"
                             )
                     except Exception as cleanup_exc:
-                        print(
+                        logger.error(
                             f"ERROR: Failed to cleanup upcomingPosts for {business_id}: {cleanup_exc}"
                         )
             else:
@@ -368,7 +374,7 @@ def lambda_handler(event, context):
         except Exception as e:
             failed += 1
             error_msg = f"Exception processing message: {str(e)}"
-            print(f"ERROR: {error_msg}")
+            logger.exception(f"ERROR: {error_msg}")
             errors.append(error_msg)
 
     # Return processing summary
@@ -379,7 +385,7 @@ def lambda_handler(event, context):
         'errors': errors
     }
     
-    print(f"Processing complete: {json.dumps(result)}")
+    logger.info("[POST_IG] Processing complete %s", json.dumps(result))
     
     return {
         'statusCode': 200,
