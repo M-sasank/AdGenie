@@ -228,22 +228,31 @@ const Dashboard = () => {
           ? post.caption.substring(0, 100) + '...' 
           : post.caption;
 
-        // Determine trigger styling based on triggerCategory
+        // Determine trigger styling and background based on triggerCategory
         let triggerIcon = Sun;
         let triggerColor = 'text-yellow-600';
         let triggerBg = 'bg-yellow-100';
         let triggerLabel = 'Weather Trigger';
-        
+        let containerBg = 'bg-gradient-to-r from-yellow-50 to-orange-50';
+
         if (post.triggerCategory === 'holiday') {
           triggerIcon = PartyPopper;
           triggerColor = 'text-purple-600';
           triggerBg = 'bg-purple-100';
           triggerLabel = 'Holiday Trigger';
+          containerBg = 'bg-gradient-to-r from-purple-50 to-purple-100';
         } else if (post.triggerCategory === 'timeBased') {
           triggerIcon = Clock;
-          triggerColor = 'text-green-600';
-          triggerBg = 'bg-green-100';
+          triggerColor = 'text-blue-600';
+          triggerBg = 'bg-blue-100';
           triggerLabel = 'Time-Based Trigger';
+          containerBg = 'bg-gradient-to-r from-blue-50 to-blue-100';
+        } else if (post.triggerCategory === 'manual') {
+          triggerIcon = Zap;
+          triggerColor = 'text-orange-600';
+          triggerBg = 'bg-orange-100';
+          triggerLabel = 'Manual Boost';
+          containerBg = 'bg-gradient-to-r from-orange-50 to-yellow-50';
         }
 
         return {
@@ -253,7 +262,8 @@ const Dashboard = () => {
           triggerIcon,
           triggerColor,
           triggerBg,
-          triggerLabel
+          triggerLabel,
+          containerBg,
         };
       });
 
@@ -560,7 +570,7 @@ const Dashboard = () => {
                       publishedPostsList.map((post, index) => {
                         const TriggerIcon = post.triggerIcon;
                         return (
-                          <div key={post.postID || index} className="border border-gray-200 rounded-lg p-4 bg-gradient-to-r from-yellow-50 to-orange-50">
+                          <div key={post.postID || index} className={`border border-gray-200 rounded-lg p-4 ${post.containerBg}`}>
                             <div className="flex items-center justify-between mb-3">
                               <div className="flex items-center space-x-2">
                                 <TriggerIcon className={`h-4 w-4 ${post.triggerColor}`} />

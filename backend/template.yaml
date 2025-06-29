@@ -378,3 +378,50 @@ Resources:
       Principal: scheduler.amazonaws.com
       # SourceArn intentionally omitted to allow any scheduler schedule in this account/region
 
+  # Time-based Triggers Function
+  CheckTimeTriggersFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/check_time_triggers/
+      Handler: app.lambda_handler
+      Runtime: python3.11
+      Timeout: 60
+      MemorySize: 256
+      Description: Evaluate weekend/payday triggers and schedule posts at 10 AM local.
+      Environment:
+        Variables:
+          BUSINESSES_TABLE: !Ref BusinessesTable
+          BEDROCK_GENERATE_FUNCTION_ARN: !GetAtt BedrockGenerateFunction.Arn
+          SCHEDULER_ROLE_ARN: !GetAtt SchedulerInvokeRole.Arn
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref BusinessesTable
+        - Statement:
+            - Effect: Allow
+              Action: events:PutEvents
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - scheduler:CreateSchedule
+              Resource: !Sub arn:aws:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/default/*
+            - Effect: Allow
+              Action: iam:PassRole
+              Resource: !GetAtt SchedulerInvokeRole.Arn
+
+  # Daily rule to invoke time trigger lambda
+  TimeTriggerDailyRule:
+    Type: AWS::Events::Rule
+    Properties:
+      ScheduleExpression: cron(10 0 * * ? *) # 00:10 UTC daily
+      Targets:
+        - Arn: !GetAtt CheckTimeTriggersFunction.Arn
+          Id: DailyTimeTrigger
+
+  TimeTriggerDailyPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref CheckTimeTriggersFunction
+      Action: "lambda:InvokeFunction"
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt TimeTriggerDailyRule.Arn
+

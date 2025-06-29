@@ -223,7 +223,7 @@ def get_instagram_permalink(media_id: str, access_token: str) -> str | None:
         logger.exception("[POST_IG] Exception during permalink retrieval: %s", e)
         return None
 
-def post_to_instagram(image_url: str, caption: str, business_id: str, trigger_category: str | None = None) -> bool:
+def post_to_instagram(image_url: str, caption: str, business_id: str, trigger_category: str | None = None, seed: int | None = None) -> bool:
     """
     Complete workflow to post content to Instagram.
     
@@ -233,6 +233,10 @@ def post_to_instagram(image_url: str, caption: str, business_id: str, trigger_ca
     :type caption: str
     :param business_id: Business ID for token lookup
     :type business_id: str
+    :param trigger_category: Trigger category for the post
+    :type trigger_category: str | None
+    :param seed: Random seed used during generation
+    :type seed: int | None
     :return: True if successful, False otherwise
     :rtype: bool
     """
@@ -280,6 +284,10 @@ def post_to_instagram(image_url: str, caption: str, business_id: str, trigger_ca
         
         if trigger_category:
             post_record["triggerCategory"] = trigger_category
+        
+        # Persist random seed if provided (helps trace Titan generation)
+        if seed is not None:
+            post_record["seed"] = seed
         
         table.update_item(
             Key={"businessID": business_id},
@@ -330,6 +338,7 @@ def lambda_handler(event, context):
             business_id = message_body.get('businessID')
             schedule_name = message_body.get('scheduleName')
             trigger_category = message_body.get('triggerCategory')
+            seed = message_body.get('seed')
         
             if not caption or not image_url or not business_id:
                 error_msg = "Message is missing required fields (caption, image_url, businessID)"
@@ -339,7 +348,7 @@ def lambda_handler(event, context):
                 continue
             
             # Attempt to post to Instagram
-            success = post_to_instagram(image_url, caption, business_id, trigger_category)
+            success = post_to_instagram(image_url, caption, business_id, trigger_category, seed)
             
             if success:
                 successful += 1
