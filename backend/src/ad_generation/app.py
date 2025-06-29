@@ -3,6 +3,7 @@ import base64
 import uuid
 import json
 import os
+import random
 from decimal import Decimal
 import logging
 
@@ -76,11 +77,33 @@ def lambda_handler(event, context):
 
         # Fetch business details to personalise caption
         business_name = "Your Business"
+        # Additional business attributes with safe defaults
+        brand_voice = ""
+        business_type = ""
+        location = ""
+        products = []
+        time_zone = ""
+
         try:
             biz_resp = BUSINESSES_TABLE.get_item(Key={"businessID": business_id})
             biz = biz_resp.get("Item", {})
+
+            # Extract relevant fields if they exist
             business_name = biz.get("businessName", business_name)
-            logger.info("[AD_GENERATION] Business lookup success. business_name=%s", business_name)
+            brand_voice = biz.get("brandVoice", brand_voice)
+            business_type = biz.get("businessType", business_type)
+            location = biz.get("location", location)
+            products = biz.get("products", products)
+            time_zone = biz.get("timeZone", time_zone)
+
+            logger.info(
+                "[AD_GENERATION] Business lookup success. name=%s voice=%s type=%s location=%s tz=%s",
+                business_name,
+                brand_voice,
+                business_type,
+                location,
+                time_zone,
+            )
         except Exception as lookup_exc:  # noqa: BLE001
             logger.warning("[AD_GENERATION] Could not fetch business %s: %s", business_id, lookup_exc)
 
@@ -95,8 +118,10 @@ def lambda_handler(event, context):
                 'body': json.dumps({'error': 'Server misconfiguration: bucket name missing'})
             }
 
-        # 1. Rewrite prompt for image generation using Claude
-        logger.info("[AD_GENERATION] Invoking rewrite model. custom_prompt_len=%s", len(custom_prompt))
+        # 1. Rewrite prompt for image generation using Amazon Titan Premier text model
+        rewrite_model_id = "amazon.titan-text-premier-v1:0"
+        logger.info("[AD_GENERATION] Invoking rewrite model. model_id=%s custom_prompt_len=%s", rewrite_model_id, len(custom_prompt))
+        logger.debug("[AD_GENERATION] Rewrite input preview: %s", (custom_prompt[:120] + "...") if len(custom_prompt) > 120 else custom_prompt)
         rewrite_system_prompt = (
             "You are a helpful assistant that rewrites a marketing offer or announcement into a vivid scene description "
             "suitable as an input prompt for an AI image generator. "
@@ -104,58 +129,75 @@ def lambda_handler(event, context):
             "3) Return ONLY the rewritten scene description with no extra commentary or formatting."
         )
 
-        rewrite_model_id = "anthropic.claude-3-sonnet-20240229-v1:0"
+        titan_rewrite_body = json.dumps({
+            "inputText": f"{rewrite_system_prompt}\n\n{custom_prompt}",
+            "textGenerationConfig": {
+                "maxTokenCount": 128,
+                "temperature": 0.5,
+                "topP": 0.9
+            }
+        })
+
         rewrite_response = bedrock.invoke_model(
             modelId=rewrite_model_id,
             contentType="application/json",
             accept="application/json",
-            body=json.dumps({
-                "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 128,
-                "messages": [
-                    {"role": "user", "content": f"{rewrite_system_prompt}\n\n{custom_prompt}"}
-                ]
-            })
+            body=titan_rewrite_body
         )
-        rewrite_body = json.loads(rewrite_response['body'].read().decode('utf-8'))
-        image_prompt = rewrite_body['content'][0]['text'].strip()
-        logger.info("[AD_GENERATION] Rewrite model produced image_prompt_len=%s", len(image_prompt))
+        rewrite_body = json.loads(rewrite_response["body"].read().decode("utf-8"))
+        image_prompt = rewrite_body["results"][0]["outputText"].strip()
+        logger.info("[AD_GENERATION] Rewrite model completed. image_prompt_len=%s", len(image_prompt))
+        logger.debug("[AD_GENERATION] image_prompt_preview=%s", (image_prompt[:120] + "...") if len(image_prompt) > 120 else image_prompt)
 
         # Ensure Titan prompt length <= 512 chars
         if len(image_prompt) > 512:
             logger.info("[AD_GENERATION] Truncating image_prompt from %s to 512 characters", len(image_prompt))
+            logger.debug("[AD_GENERATION] image_prompt_before_truncate=%s", image_prompt)
             image_prompt = image_prompt[:512]
 
-        # 2. Generate caption using Claude
-        logger.info("[AD_GENERATION] Invoking caption model")
-        caption_model_id = "anthropic.claude-3-sonnet-20240229-v1:0"
-
+        # 2. Generate caption using Amazon Titan Premier text model
+        caption_model_id = "amazon.titan-text-premier-v1:0"
         caption_instruction = (
-            f"Compose a concise Instagram caption (20-25 words) for the following promotion: {custom_prompt}. "
-            f"Incorporate the business name '{business_name}'. Use an engaging tone matching the offer. "
-            "Add exactly 3 relevant hashtags at the end. Do NOT include disclaimers, terms & conditions, or placeholder text. "
+            f"You are an expert social-media copywriter. "
+            f"Write an engaging Instagram caption (20-25 words) for this promotion: {custom_prompt}. "
+            f"Business name: '{business_name}'. "
+            f"Brand voice: '{brand_voice}'. "
+            f"Business type: '{business_type}'. "
+            f"Location: '{location}'. "
+            f"Primary products: {', '.join(products[:3]) if products else 'N/A'}. "
+            "Use the stated brand voice, match the business type, and address the audience in the specified location. "
+            "Finish with exactly three relevant hashtags. "
             "Return ONLY the caption text."
         )
+
+        logger.info("[AD_GENERATION] Invoking caption model. model_id=%s", caption_model_id)
+        logger.debug("[AD_GENERATION] caption_instruction=%s", caption_instruction)
+
+        titan_caption_body = json.dumps({
+            "inputText": caption_instruction,
+            "textGenerationConfig": {
+                "maxTokenCount": 128,
+                "temperature": 0.7,
+                "topP": 0.9
+            }
+        })
 
         caption_response = bedrock.invoke_model(
             modelId=caption_model_id,
             contentType="application/json",
             accept="application/json",
-            body=json.dumps({
-                "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 128,
-                "messages": [
-                    {"role": "user", "content": caption_instruction}
-                ]
-            })
+            body=titan_caption_body
         )
         caption_body = json.loads(caption_response["body"].read().decode("utf-8"))
-        caption = caption_body["content"][0]["text"].strip()
-        logger.info("[AD_GENERATION] Caption generated. len=%s preview=%s", len(caption), caption[:120])
+        caption = caption_body["results"][0]["outputText"].strip()
+        logger.info("[AD_GENERATION] Caption generated. len=%s", len(caption))
+        logger.debug("[AD_GENERATION] Caption preview: %s", caption)
 
         # 3. Generate image using Titan
-        logger.info("[AD_GENERATION] Invoking Titan image model with prompt_len=%s", len(image_prompt))
         image_model_id = "amazon.titan-image-generator-v2:0"
+        cfg_scale = round(random.uniform(6.0, 9.0), 1)
+        seed = random.randint(0, 2**31 - 1)
+        logger.info("[AD_GENERATION] Invoking Titan image model. model_id=%s prompt_len=%s cfg_scale=%s seed=%s", image_model_id, len(image_prompt), cfg_scale, seed)
         titan_body = json.dumps({
             "taskType": "TEXT_IMAGE",
             "textToImageParams": {
@@ -165,7 +207,8 @@ def lambda_handler(event, context):
                 "numberOfImages": 1,
                 "height": 1024,
                 "width": 1024,
-                "cfgScale": 8.0
+                "cfgScale": cfg_scale,
+                "seed": seed
             }
         })
         image_response = bedrock.invoke_model(
@@ -193,13 +236,14 @@ def lambda_handler(event, context):
             # ACL='public-read'
         )
         
-        logger.info("[AD_GENERATION] Uploaded image to S3 bucket=%s key=%s", BUCKET_NAME, image_key)
+        logger.info("[AD_GENERATION] Uploaded image to S3 bucket=%s key=%s seed=%s", BUCKET_NAME, image_key, seed)
         # Generate presigned URL valid for 6 hours so Instagram can fetch
         s3_url = s3.generate_presigned_url(
             ClientMethod="get_object",
             Params={"Bucket": BUCKET_NAME, "Key": image_key},
             ExpiresIn=21600,
         )
+        logger.debug("[AD_GENERATION] S3 presigned URL: %s", s3_url)
 
         # 4. Send message to SQS queue for Instagram posting
         logger.info("[AD_GENERATION] Sending content to SQS queue: %s", AD_CONTENT_QUEUE_URL)
@@ -207,7 +251,9 @@ def lambda_handler(event, context):
         message_body = {
             'caption': caption,
             'image_url': s3_url,
-            'businessID': business_id
+            'businessID': business_id,
+            'seed': seed,
+            'triggerCategory': 'manual'
         }
         
         sqs_resp = sqs_client.send_message(
@@ -216,6 +262,7 @@ def lambda_handler(event, context):
         )
 
         logger.info("[AD_GENERATION] Message sent to SQS. MessageId=%s", sqs_resp.get('MessageId'))
+        logger.debug("[AD_GENERATION] SQS message body: %s", message_body)
 
         return {
             'statusCode': 200,
