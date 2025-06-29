@@ -70,6 +70,8 @@ Resources:
       Timeout: 120
       MemorySize: 512
       Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref BusinessesTable
         - Statement:
           - Effect: Allow
             Action:
