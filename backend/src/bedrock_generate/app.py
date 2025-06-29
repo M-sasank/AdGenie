@@ -118,6 +118,7 @@ def _generate_and_enqueue(
             logger.info("[BEDROCK_GENERATE] Truncating image_prompt from %s to 512 characters", len(image_prompt))
             image_prompt = image_prompt[:512]
         cfg_scale = round(random.uniform(6.0, 9.0), 1)
+        seed = random.randint(0, 2**31 - 1)
 
         titan_body = json.dumps(
             {
@@ -128,6 +129,7 @@ def _generate_and_enqueue(
                     "height": 1024,
                     "width": 1024,
                     "cfgScale": cfg_scale,
+                    "seed": seed,
                 },
             }
         )
@@ -179,6 +181,7 @@ def _generate_and_enqueue(
             "caption": caption,
             "image_url": s3_url,
             "businessID": business_id,
+            "seed": seed,
         }
         if schedule_name is not None:
             message_body["scheduleName"] = schedule_name
@@ -573,7 +576,7 @@ def lambda_handler(event, context):
                 "body": "Server misconfiguration: bucket name missing",
             }
 
-        # 1. Generate caption using Claude 3 Sonnet
+        # 1. Generate caption using Anazon Titan text model
         text_prompt = (
             body.get("baseCaption")
             or "Generate a creative caption for a summer beach photo."
@@ -624,6 +627,7 @@ def lambda_handler(event, context):
             logger.info("[BEDROCK_GENERATE] Truncating image_prompt from %s to 512 characters", len(image_prompt))
             image_prompt = image_prompt[:512]
         cfg_scale = round(random.uniform(6.0, 9.0), 1)
+        seed = random.randint(0, 2**31 - 1)
 
         titan_body = json.dumps(
             {
@@ -634,6 +638,7 @@ def lambda_handler(event, context):
                     "height": 1024,
                     "width": 1024,
                     "cfgScale": cfg_scale,
+                    "seed": seed,
                 },
             }
         )
@@ -680,6 +685,7 @@ def lambda_handler(event, context):
             "caption": caption,
             "image_url": s3_url,
             "businessID": business_id,
+            "seed": seed,
         }
 
         sqs_resp = sqs_client.send_message(
