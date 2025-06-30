@@ -1,11 +1,10 @@
-
 import { Card, CardBody, CardHeader } from "@nextui-org/react";
 import { Target, Bot, TrendingUp } from "lucide-react";
 import AnimatedShowcase from "@/components/AnimatedShowcase";
 
 const Features = () => {
   return (
-    <section className="container mx-auto px-6 py-24 bg-muted/30">
+    <section id="how-adgenie-works" className="container mx-auto px-6 py-24 bg-muted/30">
       <div className="text-center mb-20">
         <h2 className="text-4xl md:text-5xl font-bold mb-6 text-foreground tracking-tight">
           How AdGenie Works

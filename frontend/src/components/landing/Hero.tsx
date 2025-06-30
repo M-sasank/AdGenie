@@ -38,6 +38,8 @@ const Hero = ({ onGetStarted }: HeroProps) => {
           Start Your 7-Day Free Trial
         </Button>
         <Button 
+          as="a"
+          href="#how-adgenie-works"
           size="lg" 
           variant="bordered" 
           className="border-2 border-gray-200 text-gray-700 hover:bg-gray-50 font-medium px-8 py-4 text-lg"
