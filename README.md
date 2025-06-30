@@ -18,9 +18,9 @@ A business owner signs up through the React frontend published and made availabl
 **2. Trigger Activation:**
 After the businesses onboarding, they get to choose when should the app post. AdGenie's Lambda backend constantly monitors for opportunities based on these user-configured triggers. This is not a simple cron job, but a collection of specialized, event-driven processes made from different AWS Services like SQS, EventBridge and EventBridge Scheduler:
 *   **Time-Based Triggers:** A scheduled Lambda, runs daily. It scans for users who have opted into time-based campaigns (like "Payday Sales" or "Weekend Specials"). When a relevant day is identified, it uses **_AWS EventBridge Scheduler_** to create a precise, one-off job to generate an ad at 10:00 AM in the business's local timezone.
-*   **Weather-Based Triggers:** A more advanced scheduled Lambda, `check_weather`, runs periodically via Event Bridge Schedules. For each opted-in business, it does the following
+*   **Weather-Based Triggers:** A more advanced scheduled Lambda, `check_weather`, runs every **three hours** via EventBridge Schedules. For each opted-in business, it does the following
     - fetches 30 days of historical weather data from the Open-Meteo API to establish a local baseline for "hot" or "cold".
-    - It then analyzes the next 12-hour forecast for sustained conditions that match the business's preferences (e.g., "post when it's rainy").
+    - It then analyzes the next **3-hour** forecast for sustained conditions that match the business's preferences (e.g., "post when it's rainy").
     - If a valid event is detected within the business's operating hours, it schedules a targeted ad generation job via EventBridge Scheduler.
 *   **On-Demand Triggers:** The user can manually trigger ad generation at any time through invoking the `ad_generation` lambda with prompt of their choice, perfect for flash sales or special announcements like Birthday sales, clearance sales, etc.
 
@@ -65,7 +65,7 @@ Each Lambda function has a single, well-defined responsibility(atleast we tried 
 *   `oauth_instagram_exchange`: Securely handles the Instagram OAuth 2.0 token exchange.
 *   `ad_generation`: Handles on-demand, user-initiated ad generation.
 *   `check_time_triggers`: Scans for and schedules time-based marketing events.
-*   `check_weather`: Analyzes weather data and schedules weather-based marketing events.
+*   `check_weather`: Analyzes **3-hour** weather forecasts and schedules weather-based marketing events.
 *   `bedrock_generate`: The primary worker for generating ad content from scheduled triggers.
 *   `post_to_instagram`: The final worker that consumes from the SQS queue and publishes content to Instagram.
 *   `check_holidays` / `save_triggers`: *Currently non-operational placeholders from our initial thoughts but we were unable to implement in expected timeframe*
@@ -76,3 +76,27 @@ Each Lambda function has a single, well-defined responsibility(atleast we tried 
 *   **Productionize Holiday Triggers:** Integrate a live holiday API and activate the `check_holidays` Lambda to enable marketing campaigns based on national or local holidays.
 *   **Optimize Database Queries:** Implement a Global Secondary Index (GSI) on the `userId` attribute in the `Businesses` DynamoDB table. This will replace the inefficient `scan` operation in the `business_list` function with a highly-performant `query`, improving scalability.
 *   **Integrate with 3rd-Party Data:** Connect to external data sources like Point-of-Sale (POS) or inventory management systems to create even more relevant triggers (e.g., "new product arrival" or "low stock sale").
+
+### AWS Services Used
+
+- **Amazon API Gateway** – Provides the REST interface that fronts all synchronous Lambda calls, enabling secure, scalable HTTP access for the frontend.
+- **AWS Lambda** – Serverless execution environment for every micro-service function in the backend.
+- **Amazon EventBridge**
+  - *Rule Scheduler* – Drives recurring cron jobs (`check_time_triggers`, `check_weather`).
+  - *EventBridge Scheduler* – Creates one-off, time-targeted invocations of `bedrock_generate`.
+- **Amazon SQS** – Decouples AI generation from the posting workflow via the `ad_content_queue`.
+- **Amazon S3** – Stores Titan-generated images and serves presigned URLs to Instagram.
+- **Amazon DynamoDB** – Persists business profiles, trigger settings, and posting history.
+- **Amazon Bedrock** – Hosts Titan text and image models used by `bedrock_generate` and `ad_generation`.
+- **AWS CloudWatch Logs** – Captures logs from every Lambda invocation for debugging and monitoring.
+- **AWS IAM** – Enforces least-privilege access between services (e.g., Scheduler → Lambda, Lambda → S3).
+- **AWS SAM** – Infrastructure-as-code tool used to define, deploy, and update the entire serverless stack.
+
+### External / Non-AWS Services & Tools
+
+- **Instagram Graph API** – Publishes media and retrieves user profile data.
+- **Open-Meteo API** – Supplies real-time forecasts, historical averages, and geocoding for the weather-trigger engine.
+- **draw.io / diagrams.net** – Used to create the architecture diagrams (design-time only).
+- **React (Vite + TypeScript)** – Front-end framework powering the single-page application.
+- **Tailwind CSS & shadcn/ui** – Utility-first CSS and component libraries for styling the frontend.
+- **Bun / npm** – JavaScript build and dependency tooling for the frontend and serverless functions.
