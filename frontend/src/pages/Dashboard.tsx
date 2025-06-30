@@ -469,7 +469,7 @@ const Dashboard = () => {
                       <HelpCircle className="h-3 w-3 text-gray-400 hover:text-gray-600" />
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p className="text-xs">Combined likes, comments, and shares across all your published posts</p>
+                      <p className="text-xs">Combined likes, comments, views, and shares across all your published posts (refreshed every 3 hrs)</p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
