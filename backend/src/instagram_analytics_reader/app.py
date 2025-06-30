@@ -39,15 +39,17 @@ from botocore.exceptions import ClientError
 # Configuration
 # ---------------------------------------------------------------------------
 
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO))
 LOGGER = logging.getLogger()
-LOGGER.setLevel(logging.INFO)
+LOGGER.setLevel(getattr(logging, LOG_LEVEL, logging.INFO))
 
-IG_API_VERSION: str = os.getenv("INSTAGRAM_API_VERSION", "v18.0")
+IG_API_VERSION: str = os.getenv("INSTAGRAM_API_VERSION", "v22.0")
 IG_BASE_URL: str = f"https://graph.instagram.com/{IG_API_VERSION}"
 
 # Insights must be called on facebook domain, not instagram.
 FB_BASE_URL: str = os.getenv(
-    "FACEBOOK_GRAPH_BASE", f"https://graph.facebook.com/{IG_API_VERSION}"
+    "FACEBOOK_GRAPH_BASE", f"https://graph.instagram.com/{IG_API_VERSION}"
 )
 
 BUSINESSES_TABLE_NAME: str = os.getenv("BUSINESSES_TABLE", "Businesses")
@@ -103,6 +105,12 @@ class AnalyticsUpdater:  # pylint: disable=too-few-public-methods
             response = BUSINESSES_TABLE.scan(**scan_kwargs)
             items: List[Dict[str, Any]] = response.get("Items", [])
             for item in items:
+                LOGGER.debug(
+                    "[IG_ANALYTICS] Scanned business %s tokenConnected=%s posts=%d",
+                    item.get("businessID"),
+                    item.get("socialMedia", {}).get("instagram", {}).get("connected"),
+                    len(item.get("publishedPosts", [])),
+                )
                 self._process_business(item)
             start_key = response.get("LastEvaluatedKey")
             if not start_key:
@@ -143,6 +151,7 @@ class AnalyticsUpdater:  # pylint: disable=too-few-public-methods
         updated = False
         for idx, post in enumerate(posts):
             if self._needs_refresh(post):
+                LOGGER.debug("[IG_ANALYTICS] Fetching metrics for post %s (idx=%d)", post["postID"], idx)
                 try:
                     analytics = self._fetch_post_metrics(post["postID"], access_token)
                 except Exception as fetch_exc:  # noqa: BLE001
@@ -156,7 +165,7 @@ class AnalyticsUpdater:  # pylint: disable=too-few-public-methods
                     total_engagement = sum(
                         (p.get("analytics", {}).get("likeCount", 0)
                          + p.get("analytics", {}).get("commentCount", 0)
-                         + p.get("analytics", {}).get("saveCount", 0))
+                         + p.get("analytics", {}).get("viewCount", 0))
                         for p in posts
                     )
 
@@ -171,6 +180,7 @@ class AnalyticsUpdater:  # pylint: disable=too-few-public-methods
                         )
                         updated = True
                         self.posts_updated += 1
+                        LOGGER.debug("[IG_ANALYTICS] UpdateItem for %s idx=%d analytics=%s", business_id, idx, json.dumps(analytics)[:300])
                     except ClientError as ddb_exc:
                         msg = f"DDB update failed {business_id}:{idx} {ddb_exc}"
                         self.errors.append(msg)
@@ -180,16 +190,19 @@ class AnalyticsUpdater:  # pylint: disable=too-few-public-methods
             self.businesses_processed += 1
 
     @staticmethod
-    def _needs_refresh(post: Dict[str, Any]) -> bool:
-        """Determine if the `analytics` key is absent or stale."""
-        analytics = post.get("analytics")
-        if not analytics:
-            return True
-        try:
-            fetched_at = datetime.fromisoformat(analytics["fetchedAt"].replace("Z", "+00:00"))
-            return datetime.now(timezone.utc) - fetched_at > ANALYTICS_TTL
-        except Exception:  # noqa: BLE001
-            return True
+    # def _needs_refresh(post: Dict[str, Any]) -> bool:
+    #     """Determine if the `analytics` key is absent or stale."""
+    #     analytics = post.get("analytics")
+    #     if not analytics:
+    #         return True
+    #     try:
+    #         fetched_at = datetime.fromisoformat(analytics["fetchedAt"].replace("Z", "+00:00"))
+    #         return datetime.now(timezone.utc) - fetched_at > ANALYTICS_TTL
+    #     except Exception:  # noqa: BLE001
+    #         return True
+    def _needs_refresh(post: Dict[str, Any]) -> bool:  # noqa: D401
+        """Always return True to force analytics refresh on every run."""
+        return True
 
     # ------------------------- HTTP helper -------------------------
 
@@ -197,8 +210,10 @@ class AnalyticsUpdater:  # pylint: disable=too-few-public-methods
     def _request_with_retry(url: str, params: Dict[str, Any]):
         """GET request with one retry on non-200 or exception."""
         for attempt in (0, 1):
+            LOGGER.debug("[IG_ANALYTICS] HTTP GET %s params=%s attempt=%d", url, params, attempt)
             try:
                 resp = requests.get(url, params=params, timeout=REQUEST_TIMEOUT)
+                LOGGER.debug("[IG_ANALYTICS] Response %s %s", resp.status_code, resp.text[:300])
                 if resp.status_code == 200:
                     return resp
                 if attempt == 0:
@@ -223,38 +238,42 @@ class AnalyticsUpdater:  # pylint: disable=too-few-public-methods
 
         media_type = basic_data.get("media_type", "IMAGE")
 
-        # 2. Determine metric list permitted by media_type
-        if media_type in {"REEL", "VIDEO"}:
-            metrics = "plays,saved"
-        else:
-            metrics = "saved"
+        # 2. Try full metric list once to validate capability
+        metrics = "likes,comments,views,shares,reach,saved"
 
-        insights_url = f"{FB_BASE_URL}/{media_id}/insights"
-        insights_resp = self._request_with_retry(
-            insights_url,
-            params={"access_token": token, "metric": metrics},
-        )
-
-        insight_items = insights_resp.json().get("data", [])
-        insight_map = {d["name"]: d["values"][0]["value"] for d in insight_items}
+        insight_map: Dict[str, int] = {}
+        try:
+            insights_url = f"{FB_BASE_URL}/{media_id}/insights"
+            resp = requests.get(
+                insights_url,
+                params={"access_token": token, "metric": metrics},
+                timeout=REQUEST_TIMEOUT,
+            )
+            LOGGER.info(
+                "[IG_ANALYTICS] insights call %s status=%s body=%s", insights_url, resp.status_code, resp.text[:200]
+            )
+            if resp.status_code == 200:
+                insight_items = resp.json().get("data", [])
+                insight_map = {d["name"]: d["values"][0]["value"] for d in insight_items}
+            else:
+                LOGGER.warning("[IG_ANALYTICS] insights rejected for %s: %s", media_id, resp.text)
+        except Exception as insight_exc:  # noqa: BLE001
+            LOGGER.warning("[IG_ANALYTICS] insights call failed for %s: %s", media_id, insight_exc)
 
         # Build analytics object
         like_count = basic_data.get("like_count", 0)
         comment_count = basic_data.get("comments_count", 0)
-        save_count = insight_map.get("saved", 0)
-        plays = insight_map.get("plays", 0)
+        view_count = insight_map.get("views", 0) or insight_map.get("plays", 0)
+        share_count = insight_map.get("shares", 0)
 
-        engagement = like_count + comment_count + save_count
-        if plays:
-            engagement += plays
+        engagement = like_count + comment_count + view_count + share_count
 
         analytics = {
             "fetchedAt": _iso_now(),
             "likeCount": like_count,
             "commentCount": comment_count,
-            "saveCount": save_count,
-            "plays": plays,
-            "reach": insight_map.get("reach", 0),
+            "viewCount": view_count,
+            "shareCount": share_count,
             "engagement": engagement,
         }
 
@@ -268,6 +287,9 @@ class AnalyticsUpdater:  # pylint: disable=too-few-public-methods
 def lambda_handler(event: Dict[str, Any], context):  # noqa: D401
     """AWS Lambda handler wrapper."""
 
+    start = time.time()
     updater = AnalyticsUpdater()
     summary = updater.run()
+    summary["elapsedSeconds"] = round(time.time() - start, 2)
+    LOGGER.info("[IG_ANALYTICS] Lambda complete %s", json.dumps(summary))
     return {"statusCode": 200, "body": json.dumps(summary)}
