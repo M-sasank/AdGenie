@@ -142,17 +142,32 @@ def _get_7day_avg_temp(lat: float, lon: float, now_utc: datetime) -> float:
     return sum(temps_clean) / len(temps_clean)
 
 
-def _get_next12h_forecast(
+def _get_next3h_forecast(
     lat: float, lon: float, now_utc: datetime
 ) -> Dict[str, List[Any]]:
-    """Fetch next 12-hour forecast including time, temperature (°C) and precipitation (mm)."""
+    """Return a 3-hour hourly forecast for the given coordinates.
+
+    Parameters
+    ----------
+    lat, lon : float
+        Geographic latitude and longitude.
+    now_utc : datetime
+        The *current* UTC time used to bound the 3-hour window.
+
+    Returns
+    -------
+    Dict[str, List[Any]]
+        Mapping with keys ``"time"``, ``"temperature"`` and ``"precipitation"``. Each
+        list is limited to timestamps that fall within the next three hours from
+        *now_utc*.
+    """
     url = (
         "https://api.open-meteo.com/v1/forecast"
         f"?latitude={lat}&longitude={lon}"
         "&hourly=temperature_2m,precipitation"
         "&forecast_days=1&timezone=UTC"
     )
-    logger.info("[CHECK_WEATHER] Fetching 12-hour forecast: %s", url)
+    logger.info("[CHECK_WEATHER] Fetching 3-hour forecast: %s", url)
     resp = HTTP_SESSION.get(url, timeout=10)
     resp.raise_for_status()
     data = resp.json()
@@ -160,16 +175,16 @@ def _get_next12h_forecast(
     temps = data.get("hourly", {}).get("temperature_2m", [])
     prec = data.get("hourly", {}).get("precipitation", [])
 
-    # Log raw arrays length and first 12 entries for inspection
+    # Log raw arrays length and first few entries for inspection
     logger.info(
-        "[CHECK_WEATHER] Raw forecast arrays | len=%s hours_sample=%s temps_sample=%s prec_sample=%s",
+        "[CHECK_WEATHER] Raw forecast arrays for next 3h | len=%s hours_sample=%s temps_sample=%s prec_sample=%s",
         len(hours),
-        hours[:12],
-        temps[:12],
-        prec[:12],
+        hours[:3],
+        temps[:3],
+        prec[:3],
     )
 
-    # Build list limited to next 12 hours
+    # Build list limited to next 3 hours
     forecast: Dict[str, List[Any]] = {
         "time": [],
         "temperature": [],
@@ -179,14 +194,14 @@ def _get_next12h_forecast(
         ts_dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
         if ts_dt.tzinfo is None:
             ts_dt = ts_dt.replace(tzinfo=timezone.utc)
-        if 0 <= (ts_dt - now_utc).total_seconds() <= 12 * 3600:
+        if 0 <= (ts_dt - now_utc).total_seconds() <= 3 * 3600:
             forecast["time"].append(
                 ts_dt.replace(microsecond=0).isoformat().replace("+00:00", "Z")
             )
             forecast["temperature"].append(float(temps[idx]))
             forecast["precipitation"].append(float(prec[idx]))
     logger.info(
-        "[CHECK_WEATHER] Next 12-h forecast sample | time=%s temp=%s precip=%s",
+        "[CHECK_WEATHER] Next 3-h forecast sample | time=%s temp=%s precip=%s",
         forecast["time"] if "time" in forecast else "n/a",
         forecast["temperature"],
         forecast["precipitation"],
@@ -452,9 +467,9 @@ def lambda_handler(event: Dict[str, Any], context):
             )
             continue
 
-        # Upcoming 12-hour forecast
+        # Upcoming 3-hour forecast
         try:
-            forecast = _get_next12h_forecast(lat, lon, now_utc)
+            forecast = _get_next3h_forecast(lat, lon, now_utc)
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "[CHECK_WEATHER] Forecast fetch failed for %s: %s",
@@ -488,7 +503,7 @@ def lambda_handler(event: Dict[str, Any], context):
             )
             if idx is None:
                 logger.info(
-                    "[CHECK_WEATHER] Trigger %s not present within 12-h window",
+                    "[CHECK_WEATHER] Trigger %s not present within 3-h window",
                     trig_name,
                 )
                 continue
