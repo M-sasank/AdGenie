@@ -1,4 +1,3 @@
-
 import { Button, Chip } from "@nextui-org/react";
 import { Zap } from "lucide-react";
 
@@ -25,8 +24,7 @@ const Hero = ({ onGetStarted }: HeroProps) => {
         </span>
       </h1>
       <p className="text-xl text-gray-600 mb-12 max-w-2xl mx-auto font-medium leading-relaxed">
-        AdGenie automatically creates and posts perfect Instagram content for your business. 
-        Weather changes? Holiday approaching? Your AI marketing intern is already on it.
+        AdGenie automatically creates and posts perfect Instagram content for you — if tomorrow's weather turns rainy, we'll queue the perfect post. Need something ASAP? Spin up a manual boost in seconds with AI.
       </p>
       <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
         <Button 

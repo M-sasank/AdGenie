@@ -363,22 +363,6 @@ const Dashboard = () => {
                   Your AI assistant is managing campaigns for {businessData?.businessName}.
                 </p>
               </div>
-              <Button 
-                onClick={() => setBoostOpen(true)}
-                className="h-12 px-8 bg-gray-900 hover:bg-gray-800 text-white font-medium rounded-xl transition-all duration-200"
-              >
-                {isGeneratingBoost ? (
-                  <div className="flex items-center space-x-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>Generating Content...</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center space-x-2">
-                    <Zap className="w-5 h-5" />
-                    <span>Boost Now!</span>
-                  </div>
-                )}
-              </Button>
             </div>
 
             {/* Stats Cards */}
@@ -485,34 +469,39 @@ const Dashboard = () => {
               {/* Business Profile & Triggers */}
               <div className="lg:col-span-1 space-y-6">
                 {/* Business Profile */}
-                <Card className="border-gray-200 bg-white shadow-sm">
+                <Card className="border border-gray-200/70 bg-white/80 backdrop-blur-xl shadow-md rounded-2xl">
                   <CardHeader>
                     <CardTitle className="flex items-center space-x-2 text-gray-900">
                       <Coffee className="h-5 w-5 text-gray-600" />
                       <span>Business Profile</span>
                     </CardTitle>
+                    <CardDescription className="text-xs text-gray-500">
+                      Key details at a glance
+                    </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between py-2">
-                      <span className="font-medium text-gray-700">Business Name</span>
-                      <span className="text-gray-600">{businessData?.businessName}</span>
-                    </div>
-                    <div className="flex items-center justify-between py-2">
-                      <span className="font-medium text-gray-700">Business Type</span>
-                      <Badge variant="secondary" className="bg-gray-100 text-gray-700">{businessData?.businessType}</Badge>
-                    </div>
-                    <div className="flex items-center justify-between py-2">
-                      <span className="font-medium text-gray-700">Location</span>
-                      <span className="text-gray-600">{businessData?.location}</span>
-                    </div>
-                    <div className="flex items-center justify-between py-2">
-                      <span className="font-medium text-gray-700">Brand Voice</span>
-                      <Badge variant="outline" className="border-gray-300 text-gray-600">{businessData?.brandVoice}</Badge>
-                    </div>
-                    <div className="flex items-center justify-between py-2">
-                      <span className="font-medium text-gray-700">Peak Time</span>
-                      <span className="text-gray-600">{businessData?.peakTime}</span>
-                    </div>
+                  <CardContent className="divide-y divide-gray-100">
+                    <dl className="text-sm">
+                      <div className="flex items-start justify-between py-3">
+                        <dt className="text-gray-500">Name</dt>
+                        <dd className="font-medium text-gray-900 text-right max-w-[80%] truncate hover:overflow-visible" title={businessData?.businessName}>{businessData?.businessName}</dd>
+                      </div>
+                      <div className="flex items-start justify-between py-3">
+                        <dt className="text-gray-500">Type</dt>
+                        <dd><Badge variant="secondary" className="bg-gray-100 text-gray-700 lowercase first-letter:uppercase">{businessData?.businessType}</Badge></dd>
+                      </div>
+                      <div className="flex items-start justify-between py-3">
+                        <dt className="text-gray-500">Location</dt>
+                        <dd className="text-gray-900 text-right max-w-[80%] truncate" title={businessData?.location}>{businessData?.location?.split(',')[0] || '--'}</dd>
+                      </div>
+                      <div className="flex items-start justify-between py-3">
+                        <dt className="text-gray-500">Brand Voice</dt>
+                        <dd className="text-gray-900 lowercase first-letter:uppercase">{businessData?.brandVoice || '--'}</dd>
+                      </div>
+                      <div className="flex items-start justify-between py-3">
+                        <dt className="text-gray-500">Peak Time</dt>
+                        <dd className="text-gray-900 lowercase first-letter:uppercase">{businessData?.peakTime || '--'}</dd>
+                      </div>
+                    </dl>
                   </CardContent>
                 </Card>
 
@@ -650,14 +639,13 @@ const Dashboard = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+                <Button 
+                  onClick={() => setBoostOpen(true)}
+                  className="w-full bg-gray-900 hover:bg-gray-800 text-white font-medium">
                   <Sparkles className="w-4 h-4 mr-2" />
-                  Boost Now!
+                  Boost Now
                 </Button>
-                <Button variant="outline" className="w-full" onClick={() => navigate('/holidays')}>
-                  <PartyPopper className="w-4 h-4 mr-2" />
-                  Manage Holidays
-                </Button>
+
                 <Button variant="outline" className="w-full" onClick={() => setIsEditModalOpen(true)}>
                   <Edit className="w-4 h-4 mr-2" />
                   Edit Business Details
@@ -665,42 +653,35 @@ const Dashboard = () => {
               </CardContent>
             </Card>
 
-            {/* Recent Activity */}
+            {/* Upcoming Posts card moved here */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
-                  <Activity className="w-5 h-5 text-green-500" />
-                  <span>Recent Activity</span>
+                  <Calendar className="w-5 h-5 text-purple-500" />
+                  <span>Upcoming Posts</span>
                 </CardTitle>
+                <CardDescription className="text-gray-600">Scheduled AI posts</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent>
                 <div className="space-y-3">
-                  <div className="flex items-center space-x-3 p-2 bg-green-50 rounded-lg">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900">Post Published</p>
-                      <p className="text-xs text-gray-600">☀️ Perfect sunny day for iced coffee!</p>
-                      <p className="text-xs text-gray-500">2 hours ago</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-3 p-2 bg-blue-50 rounded-lg">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900">Trigger Activated</p>
-                      <p className="text-xs text-gray-600">Weather: Hot & Sunny</p>
-                      <p className="text-xs text-gray-500">2 hours ago</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-3 p-2 bg-purple-50 rounded-lg">
-                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900">Content Generated</p>
-                      <p className="text-xs text-gray-600">Monday motivation post</p>
-                      <p className="text-xs text-gray-500">1 day ago</p>
-                    </div>
-                  </div>
+                  {upcomingList.length === 0 ? (
+                    <p className="text-sm text-gray-500">-- no upcoming posts --</p>
+                  ) : (
+                    upcomingList.map((item, idx) => {
+                      const IconComp = item.icon;
+                      return (
+                        <div key={idx} className="flex items-center space-x-3">
+                          <div className={`w-8 h-8 ${item.bg} rounded-lg flex items-center justify-center`}>
+                            <IconComp className={`w-4 h-4 ${item.color}`} />
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-900">{item.title}</p>
+                            <p className="text-xs text-gray-600">{item.subtitle}</p>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -773,38 +754,6 @@ const Dashboard = () => {
                     <p className="text-sm font-medium text-green-800 mb-1">Content Tip</p>
                     <p className="text-xs text-green-700">Posts with emojis get 25% more engagement for your business type</p>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Upcoming Events */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Calendar className="w-5 h-5 text-purple-500" />
-                  <span>Upcoming</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {upcomingList.length === 0 ? (
-                    <p className="text-sm text-gray-500">-- no upcoming posts --</p>
-                  ) : (
-                    upcomingList.map((item, idx) => {
-                      const IconComp = item.icon;
-                      return (
-                        <div key={idx} className="flex items-center space-x-3">
-                          <div className={`w-8 h-8 ${item.bg} rounded-lg flex items-center justify-center`}>
-                            <IconComp className={`w-4 h-4 ${item.color}`} />
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-900">{item.title}</p>
-                            <p className="text-xs text-gray-600">{item.subtitle}</p>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
                 </div>
               </CardContent>
             </Card>
