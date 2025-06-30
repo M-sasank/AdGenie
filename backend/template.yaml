@@ -323,10 +323,10 @@ Resources:
                 - iam:PassRole
               Resource: '*'
       Events:
-        Schedule12h:
+        Schedule3h:
           Type: Schedule
           Properties:
-            Schedule: rate(12 hours)
+            Schedule: rate(3 hours)
 
   # EventBridge Rule to invoke Bedrock generator on weather triggers
   WeatherGenerationRule:
@@ -426,4 +426,35 @@ Resources:
       Action: "lambda:InvokeFunction"
       Principal: events.amazonaws.com
       SourceArn: !GetAtt TimeTriggerDailyRule.Arn
+
+  InstagramAnalyticsReaderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/instagram_analytics_reader/
+      Handler: app.lambda_handler
+      Runtime: python3.11
+      Timeout: 60
+      MemorySize: 256
+      Description: Scheduled function that fetches Instagram post and account analytics every 12 hours.
+      Environment:
+        Variables:
+          INSTAGRAM_BASE_URL: https://graph.facebook.com
+          INSTAGRAM_API_VERSION: v18.0
+          BUSINESSES_TABLE: !Ref BusinessesTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BusinessesTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+                - kms:Decrypt
+              Resource: "*"
+      Events:
+        Schedule12h:
+          Type: Schedule
+          Properties:
+            Schedule: rate(12 hours)
+      Tags:
+        auto-delete: no
 
