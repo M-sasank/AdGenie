@@ -1,0 +1,27 @@
+{
+  "user_id": "test_user_123",
+  "marketing_triggers": {
+    "weather_triggers": {
+      "enabled": true,
+      "conditions": ["sunny", "rain", "hot"],
+      "location": "Seattle, WA"
+    },
+    "holiday_triggers": {
+      "enabled": true,
+      "holidays": ["Christmas Day", "New Year's Day", "Valentine's Day", "Mother's Day"],
+      "advance_days": 3
+    },
+    "schedule_triggers": {
+      "enabled": true,
+      "frequency": "weekly",
+      "days_of_week": ["Monday", "Wednesday", "Friday"],
+      "time_of_day": "09:00"
+    },
+    "content_preferences": {
+      "tone": "friendly",
+      "style": "casual",
+      "include_hashtags": true,
+      "max_hashtags": 8
+    }
+  }
+} 

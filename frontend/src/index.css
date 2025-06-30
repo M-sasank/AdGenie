@@ -1,0 +1,561 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. */
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 220 100% 60%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.6s ease-out forwards;
+  }
+  
+  .animate-fade-in.delay-100 {
+    animation-delay: 0.1s;
+    opacity: 0;
+  }
+  
+  .animate-fade-in.delay-200 {
+    animation-delay: 0.2s;
+    opacity: 0;
+  }
+  
+  .animate-fade-in.delay-300 {
+    animation-delay: 0.3s;
+    opacity: 0;
+  }
+  
+  .animate-fade-in.delay-400 {
+    animation-delay: 0.4s;
+    opacity: 0;
+  }
+  
+  .animate-fade-in.delay-500 {
+    animation-delay: 0.5s;
+    opacity: 0;
+  }
+  
+  .animate-slide-up {
+    animation: slideUp 0.5s ease-out forwards;
+  }
+  
+  .animate-scale-in {
+    animation: scaleIn 0.4s ease-out forwards;
+  }
+
+  /* Apple-inspired animations */
+  .animate-apple-slide-in {
+    animation: appleSlideIn 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  }
+
+  .animate-apple-slide-out {
+    animation: appleSlideOut 0.6s cubic-bezier(0.55, 0.06, 0.68, 0.19) forwards;
+  }
+
+  .animate-apple-float {
+    animation: appleFloat 3s ease-in-out infinite;
+  }
+
+  .animate-apple-glow {
+    animation: appleGlow 2s ease-in-out infinite alternate;
+  }
+
+  .animate-apple-bounce {
+    animation: appleBounce 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+  }
+
+  .animate-apple-pulse {
+    animation: applePulse 1.5s ease-in-out infinite;
+  }
+
+  .animate-typing {
+    animation: typing 2s steps(40, end) forwards;
+  }
+
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  /* Enhanced cursor animations */
+  .animate-cursor-click {
+    animation: cursorClick 0.3s ease-out forwards;
+  }
+
+  .animate-cursor-hover {
+    animation: cursorHover 0.5s ease-in-out infinite alternate;
+  }
+
+  .animate-cursor-trail {
+    animation: cursorTrail 1s ease-out forwards;
+  }
+
+  /* Form interaction animations */
+  .animate-form-focus {
+    animation: formFocus 0.3s ease-out forwards;
+  }
+
+  .animate-form-success {
+    animation: formSuccess 0.5s ease-out forwards;
+  }
+
+  .animate-ripple {
+    animation: ripple 0.6s ease-out forwards;
+  }
+
+  /* Modal animations */
+  .animate-modal-enter {
+    animation: modalEnter 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  }
+
+  .animate-modal-exit {
+    animation: modalExit 0.3s cubic-bezier(0.55, 0.06, 0.68, 0.19) forwards;
+  }
+
+  /* Enhanced button animations */
+  .animate-button-press {
+    animation: buttonPress 0.2s ease-out forwards;
+  }
+
+  .animate-button-release {
+    animation: buttonRelease 0.2s ease-out forwards;
+  }
+
+  .glass-effect {
+    backdrop-filter: blur(20px) saturate(180%);
+    background: rgba(255, 255, 255, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+
+  .apple-button-hover {
+    transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  .apple-button-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Magnetic hover effect */
+  .magnetic-hover {
+    transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  .magnetic-hover:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  }
+
+  /* AdGenie scene entrance/exit animations */
+  .adgenie-fade-in {
+    @apply opacity-0;
+    animation: adgenie-fade-in 0.7s ease-out 0s forwards;
+  }
+  .adgenie-fade-in-up {
+    @apply opacity-0;
+    animation: adgenie-fade-in-up 0.7s cubic-bezier(0.23,1,0.32,1) 0s forwards;
+  }
+  .adgenie-slide-in-left {
+    animation: adgenie-slide-in-left 0.7s cubic-bezier(0.23,1,0.32,1) 0s forwards;
+  }
+  .adgenie-scale-in {
+    animation: adgenie-scale-in 0.5s cubic-bezier(0.23,1,0.32,1) 0s forwards;
+  }
+
+  /* Animation for smooth scene switching and staged fade-ins */
+  .scene-enter {
+    animation: fade-in-custom 0.7s ease-in-out;
+  }
+  .scene-exit {
+    animation: fade-out-custom 0.5s cubic-bezier(0.86,0,0.07,1);
+  }
+  .scene-animate-in {
+    transition: opacity 0.7s, transform 0.7s;
+    opacity: 1 !important;
+    z-index: 10;
+  }
+  .scene-insta-visible {
+    transition: all 1s cubic-bezier(0.22,1,0.36,1);
+    opacity: 1 !important;
+    transform: scale(1.08);
+  }
+  .scene-insta-hidden {
+    transition: all 0.9s cubic-bezier(0.86,0,0.07,1);
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  /* Staggered fade-in utilities for children */
+  .fade-in-delayed-1 { animation: fade-in-custom 0.6s 0.15s forwards; opacity:0; }
+  .fade-in-delayed-2 { animation: fade-in-custom 0.6s 0.35s forwards; opacity:0; }
+  .fade-in-delayed-3 { animation: fade-in-custom 0.6s 0.55s forwards; opacity:0; }
+  .fade-in-delayed-4 { animation: fade-in-custom 0.6s 0.75s forwards; opacity:0; }
+  .fade-in-delayed-5 { animation: fade-in-custom 0.6s 0.90s forwards; opacity:0; }
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Apple-inspired keyframes */
+@keyframes appleSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(100px) scale(0.95);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes appleSlideOut {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    filter: blur(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-100px) scale(0.95);
+    filter: blur(4px);
+  }
+}
+
+@keyframes appleFloat {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes appleGlow {
+  from {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
+  }
+  to {
+    box-shadow: 0 0 40px rgba(59, 130, 246, 0.4);
+  }
+}
+
+@keyframes appleBounce {
+  0% {
+    opacity: 0;
+    transform: scale(0.3) translateY(50px);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05) translateY(-10px);
+  }
+  70% {
+    transform: scale(0.95) translateY(5px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes applePulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.8;
+  }
+}
+
+@keyframes typing {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+/* Enhanced cursor animations */
+@keyframes cursorClick {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.9);
+  }
+  100% {
+    transform: scale(1.1);
+  }
+}
+
+@keyframes cursorHover {
+  0% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1.1);
+  }
+}
+
+@keyframes cursorTrail {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+/* Form interaction keyframes */
+@keyframes formFocus {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+  }
+  100% {
+    transform: scale(1.02);
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+  }
+}
+
+@keyframes formSuccess {
+  0% {
+    transform: scale(1);
+    background-color: rgb(249, 250, 251);
+  }
+  50% {
+    transform: scale(1.02);
+    background-color: rgb(240, 253, 244);
+  }
+  100% {
+    transform: scale(1);
+    background-color: rgb(249, 250, 251);
+  }
+}
+
+@keyframes ripple {
+  0% {
+    opacity: 1;
+    transform: scale(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(4);
+  }
+}
+
+/* Modal animations */
+@keyframes modalEnter {
+  0% {
+    opacity: 0;
+    transform: scale(0.9) translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes modalExit {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.9) translateY(20px);
+  }
+}
+
+/* Button animations */
+@keyframes buttonPress {
+  0% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(0.95);
+  }
+}
+
+@keyframes buttonRelease {
+  0% {
+    transform: scale(0.95);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes glow {
+  0% {
+    opacity: 0.3;
+  }
+  100% {
+    opacity: 0.8;
+  }
+}
+
+@keyframes adgenie-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes adgenie-fade-in-up {
+  from { opacity: 0; transform: translateY(32px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes adgenie-slide-in-left {
+  from { opacity: 0; transform: translateX(-48px);}
+  to   { opacity: 1; transform: translateX(0);}
+}
+@keyframes adgenie-scale-in {
+  from { opacity: 0; transform: scale(0.92);}
+  to   { opacity: 1; transform: scale(1);}
+}
+
+@keyframes fade-in-custom {
+  from { opacity: 0; transform: translateY(18px) scale(0.98);}
+  to { opacity: 1; transform: translateY(0) scale(1);}
+}
+@keyframes fade-out-custom {
+  from { opacity: 1; transform: translateY(0) scale(1);}
+  to { opacity: 0; transform: translateY(30px) scale(0.96);}
+}
+
+/* Extra smooth slow spin */
+@layer utilities {
+  .animate-spin-slow {
+    animation: spin 5s linear infinite;
+  }
+}

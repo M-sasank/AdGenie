@@ -1,0 +1,460 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: >
+  The backend for the AdGenie project. This stack includes
+  the database, APIs, and business logic for generating and posting social media ads.
+
+Parameters:
+  InstagramClientIdParameter:
+    Type: String
+    Description: Instagram App Client ID for OAuth
+    NoEcho: false
+  InstagramClientSecretParameter:
+    Type: String
+    Description: Instagram App Client Secret for OAuth
+    NoEcho: true
+  PublicS3BucketName:
+    Type: String
+    Description: Name of the public S3 bucket for generated images
+    Default: "adgenie-generated-images"
+
+Globals:
+  Api:
+    Cors:
+      AllowMethods: "'POST,GET,PUT,DELETE,OPTIONS'"
+      AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
+      AllowOrigin: "'*'"
+      MaxAge: "'600'"
+  Function:
+    Timeout: 30
+    Runtime: python3.11
+    MemorySize: 256
+    Environment:
+      Variables:
+        REGION: !Ref AWS::Region
+
+# Rest of your template remains the same
+
+
+Resources:
+  # DynamoDB Table
+  BusinessesTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      TableName: Businesses
+      PrimaryKey:
+        Name: businessID
+        Type: String
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      Tags:
+        auto-delete: no
+
+  # SQS Queue
+  AdContentQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      Tags:
+        - Key: auto-delete
+          Value: no
+
+  # Lambda Functions (they inherit tags from Globals, but you can also specify explicitly)
+  AdGenerationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/ad_generation/
+      Handler: app.lambda_handler
+      Description: Generate ad content using Amazon Bedrock
+      Timeout: 120
+      MemorySize: 512
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref BusinessesTable
+        - Statement:
+          - Effect: Allow
+            Action:
+              - bedrock:InvokeModel
+            Resource: "*"
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt AdContentQueue.QueueName
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:GetObject
+              Resource: !Sub "arn:aws:s3:::${PrivateS3Bucket}/*"
+      Events:
+        ManualTestApi:
+          Type: Api
+          Properties:
+            Path: /manual-test-post
+            Method: post
+      Environment:
+        Variables:
+          AD_CONTENT_QUEUE_URL: !Ref AdContentQueue
+          PUBLIC_BUCKET_NAME: !Ref PrivateS3Bucket
+      Tags:
+        auto-delete: no
+
+  PostToInstagramFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/post_to_instagram/
+      Handler: app.lambda_handler
+      Description: Post generated content to Instagram
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BusinessesTable
+      Events:
+        QueueEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt AdContentQueue.Arn
+            BatchSize: 1
+      Tags:
+        auto-delete: no
+
+  CreateBusinessFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/business_create/
+      Handler: app.lambda_handler
+      Description: Create a new business
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BusinessesTable
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /businesses
+            Method: post
+      Tags:
+        auto-delete: no
+
+  ReadBusinessFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/business_read/
+      Handler: app.lambda_handler
+      Description: Get a business by ID
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BusinessesTable
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /businesses/{businessID}
+            Method: get
+      Tags:
+        auto-delete: no
+
+  ListBusinessesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/business_list/
+      Handler: app.lambda_handler
+      Description: List all businesses
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BusinessesTable
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /businesses
+            Method: get
+      Tags:
+        auto-delete: no
+
+  UpdateBusinessFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/business_update/
+      Handler: app.lambda_handler
+      Description: Update a business by ID
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BusinessesTable
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /businesses/{businessID}
+            Method: put
+      Tags:
+        auto-delete: no
+
+  DeleteBusinessFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/business_delete/
+      Handler: app.lambda_handler
+      Description: Delete a business by ID
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BusinessesTable
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /businesses/{businessID}
+            Method: delete
+      Tags:
+        auto-delete: no
+
+  OAuthInstagramExchangeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/oauth_instagram_exchange/
+      Handler: app.lambda_handler
+      Description: Exchange Instagram OAuth authorization code for access token and store long-lived token
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BusinessesTable
+      Environment:
+        Variables:
+          INSTAGRAM_CLIENT_ID: !Ref InstagramClientIdParameter
+          INSTAGRAM_CLIENT_SECRET: !Ref InstagramClientSecretParameter
+          INSTAGRAM_TOKEN_URL: https://api.instagram.com/oauth/access_token
+          DYNAMODB_TABLE: !Ref BusinessesTable
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /oauth/instagram/exchange
+            Method: post
+      Tags:
+        auto-delete: no
+
+  BedrockGenerateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/bedrock_generate/
+      Handler: app.lambda_handler
+      Runtime: python3.11
+      Timeout: 60
+      MemorySize: 512
+      Description: Generate image and text using Bedrock, upload image to S3, and send to SQS queue for Instagram posting.
+      Environment:
+        Variables:
+          PUBLIC_BUCKET_NAME: !Ref PrivateS3Bucket
+          AD_CONTENT_QUEUE_URL: !Ref AdContentQueue
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref BusinessesTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:GetObject
+              Resource: !Sub "arn:aws:s3:::${PrivateS3Bucket}/*"
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt AdContentQueue.QueueName
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /generate
+            Method: post
+      Tags:
+        auto-delete: no
+
+  PrivateS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${PublicS3BucketName}-${AWS::AccountId}-${AWS::Region}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: false
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: false
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins:
+              - '*'
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+              - HEAD
+            AllowedHeaders:
+              - '*'
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  # Weather Checker Function
+  CheckWeatherFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/check_weather/
+      Handler: app.lambda_handler
+      Runtime: python3.11
+      Timeout: 60
+      MemorySize: 256
+      Description: Scheduled function that evaluates weather triggers and dispatches EventBridge events.
+      Environment:
+        Variables:
+          BUSINESSES_TABLE: !Ref BusinessesTable
+          BEDROCK_GENERATE_FUNCTION_ARN: !GetAtt BedrockGenerateFunction.Arn
+          SCHEDULER_ROLE_ARN: !GetAtt SchedulerInvokeRole.Arn
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref BusinessesTable
+        - DynamoDBWritePolicy:
+            TableName: !Ref BusinessesTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - events:PutEvents
+                - scheduler:CreateSchedule
+                - scheduler:DeleteSchedule
+                - iam:PassRole
+              Resource: '*'
+      Events:
+        Schedule3h:
+          Type: Schedule
+          Properties:
+            Schedule: rate(3 hours)
+
+  # EventBridge Rule to invoke Bedrock generator on weather triggers
+  WeatherGenerationRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - adgenie.weather
+        detail-type:
+          - "Weather Trigger Activated"
+      Targets:
+        - Arn: !GetAtt BedrockGenerateFunction.Arn
+          Id: BedrockGenerateTarget
+
+  # Permission allowing EventBridge to invoke BedrockGenerateFunction
+  BedrockGenerateInvokeByEvents:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref BedrockGenerateFunction
+      Action: "lambda:InvokeFunction"
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt WeatherGenerationRule.Arn
+
+  # IAM role that EventBridge Scheduler uses to invoke the BedrockGenerateFunction
+  SchedulerInvokeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SchedulerInvokeLambda
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !GetAtt BedrockGenerateFunction.Arn
+
+  # Permission allowing EventBridge Scheduler to invoke BedrockGenerateFunction
+  BedrockGenerateInvokeByScheduler:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref BedrockGenerateFunction
+      Action: "lambda:InvokeFunction"
+      Principal: scheduler.amazonaws.com
+      # SourceArn intentionally omitted to allow any scheduler schedule in this account/region
+
+  # Time-based Triggers Function
+  CheckTimeTriggersFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/check_time_triggers/
+      Handler: app.lambda_handler
+      Runtime: python3.11
+      Timeout: 60
+      MemorySize: 256
+      Description: Evaluate weekend/payday triggers and schedule posts at 10 AM local.
+      Environment:
+        Variables:
+          BUSINESSES_TABLE: !Ref BusinessesTable
+          BEDROCK_GENERATE_FUNCTION_ARN: !GetAtt BedrockGenerateFunction.Arn
+          SCHEDULER_ROLE_ARN: !GetAtt SchedulerInvokeRole.Arn
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref BusinessesTable
+        - Statement:
+            - Effect: Allow
+              Action: events:PutEvents
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - scheduler:CreateSchedule
+              Resource: !Sub arn:aws:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/default/*
+            - Effect: Allow
+              Action: iam:PassRole
+              Resource: !GetAtt SchedulerInvokeRole.Arn
+
+  # Daily rule to invoke time trigger lambda
+  TimeTriggerDailyRule:
+    Type: AWS::Events::Rule
+    Properties:
+      ScheduleExpression: cron(10 0 * * ? *) # 00:10 UTC daily
+      Targets:
+        - Arn: !GetAtt CheckTimeTriggersFunction.Arn
+          Id: DailyTimeTrigger
+
+  TimeTriggerDailyPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref CheckTimeTriggersFunction
+      Action: "lambda:InvokeFunction"
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt TimeTriggerDailyRule.Arn
+
+  InstagramAnalyticsReaderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/instagram_analytics_reader/
+      Handler: app.lambda_handler
+      Runtime: python3.11
+      Timeout: 60
+      MemorySize: 256
+      Description: Scheduled function that fetches Instagram post and account analytics every 12 hours.
+      Environment:
+        Variables:
+          INSTAGRAM_BASE_URL: https://graph.facebook.com
+          INSTAGRAM_API_VERSION: v18.0
+          BUSINESSES_TABLE: !Ref BusinessesTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BusinessesTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+                - kms:Decrypt
+              Resource: "*"
+      Events:
+        Schedule12h:
+          Type: Schedule
+          Properties:
+            Schedule: rate(12 hours)
+      Tags:
+        auto-delete: no
+

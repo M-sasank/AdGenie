@@ -1,0 +1,7 @@
+{
+  "httpMethod": "POST",
+  "body": "{\"userId\": \"test_user_123\", \"code\": \"test_auth_code_456\", \"redirectUri\": \"https://localhost:3000/instagram/callback\"}",
+  "headers": {
+    "Content-Type": "application/json"
+  }
+} 

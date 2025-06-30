@@ -1,0 +1,22 @@
+{
+  "business_profile": {
+    "business_name": "Cool Coffee Co",
+    "industry": "Food & Beverage",
+    "description": "Local coffee shop serving artisan coffee and pastries",
+    "target_audience": "Young professionals, students, coffee enthusiasts",
+    "location": "Downtown Seattle, WA"
+  },
+  "campaign_type": "weather_sunny",
+  "trigger_context": {
+    "trigger_type": "weather",
+    "weather_condition": "sunny",
+    "temperature": 75,
+    "location": "Seattle, WA"
+  },
+  "content_preferences": {
+    "tone": "friendly",
+    "style": "casual",
+    "include_hashtags": true,
+    "max_hashtags": 8
+  }
+} 
