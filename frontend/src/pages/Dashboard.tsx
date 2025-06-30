@@ -31,7 +31,7 @@ const Dashboard = () => {
     weather: {
       hotSunny: { icon: Sun, color: 'text-yellow-600', label: 'Hot & Sunny' },
       rainy: { icon: CloudRain, color: 'text-blue-800', label: 'Rainy Weather' },
-      coolPleasant: { icon: Cloud, color: 'text-blue-600', label: 'Cool & Pleasant' }
+      coolPleasant: { icon: Cloud, color: 'text-blue-600', label: 'Cool Days' }
     },
     timeBased: {
       mondayCoffee: { icon: Clock, color: 'text-green-600', label: 'Monday Coffee' },
@@ -264,7 +264,7 @@ const Dashboard = () => {
       let triggerColor = 'text-yellow-600';
       let triggerBg = 'bg-yellow-100';
       let triggerLabel = 'Weather Trigger';
-      let containerBg = 'bg-gradient-to-r from-yellow-50 to-orange-50';
+      let containerBg = 'bg-gradient-to-r from-blue-50 to-blue-100';
 
       if (post.triggerCategory === 'holiday') {
         triggerIcon = PartyPopper;
@@ -279,11 +279,12 @@ const Dashboard = () => {
         triggerLabel = 'Time-Based Trigger';
         containerBg = 'bg-gradient-to-r from-blue-50 to-blue-100';
       } else if (post.triggerCategory === 'manual') {
+        // Custom Boost posts highlighted with warm gradient
         triggerIcon = Zap;
         triggerColor = 'text-orange-600';
         triggerBg = 'bg-orange-100';
         triggerLabel = 'Manual Boost';
-        containerBg = 'bg-gradient-to-r from-orange-50 to-yellow-50';
+        containerBg = 'bg-gradient-to-r from-orange-50 to-red-100';
       }
 
       return {
@@ -683,10 +684,16 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent className="space-y-3">
                 <Button 
-                  onClick={() => setBoostOpen(true)}
-                  className="w-full bg-gray-900 hover:bg-gray-800 text-white font-medium">
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Boost Now
+                  onClick={() => { if(!isGeneratingBoost) setBoostOpen(true); }}
+                  disabled={isGeneratingBoost}
+                  className={`w-full bg-gray-900 hover:bg-gray-800 text-white font-medium flex items-center justify-center ${isGeneratingBoost ? 'opacity-70 cursor-not-allowed' : ''}`}
+                >
+                  {isGeneratingBoost ? (
+                    <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <Sparkles className="w-4 h-4 mr-2" />
+                  )}
+                  {isGeneratingBoost ? 'Generating...' : 'Boost Now'}
                 </Button>
 
                 <Button variant="outline" className="w-full" onClick={() => setIsEditModalOpen(true)}>
