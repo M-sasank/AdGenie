@@ -1,14 +1,14 @@
 # AdGenie - The "Robot Marketing Intern"
 
-An AI-powered application that acts as a "marketing intern" for businesses big and small. AdGenie automatically generates posts and publishes hyper-relevant social media content to Instagram based on real-world triggers, like weather, time based, etc. customized by the user.
+An AI-powered application that acts as a "marketing intern" for businesses big and small. AdGenie automatically generates posts and publishes hyper-relevant social media content to Instagram based on real-world triggers, like rain, sunny, weekend, payday, etc. customized and selected by the user.
 
-### High-Level Architecture
+## High-Level Architecture
 
 This diagram illustrates the serverless architecture, with AWS Lambda, powering AdGenie.
 
-![Architecture Diagram here]()
+![Architecture Diagram here](/AdGenie%20Architecture.jpg)
 
-### How It Works (Detailed Workflow)
+## How It Works (Detailed Workflow)
 
 The platform operates in four distinct stages, from initial setup to final post.
 
@@ -24,6 +24,38 @@ After the businesses onboarding, they get to choose when should the app post. Ad
     - If a valid event is detected within the business's operating hours, it schedules a targeted ad generation job via EventBridge Scheduler.
 *   **On-Demand Triggers:** The user can manually trigger ad generation at any time through invoking the `ad_generation` lambda with prompt of their choice, perfect for flash sales or special announcements like Birthday sales, clearance sales, etc.
 
+### Trigger Logic Deep Dive
+
+Below is a closer look at the heuristics we are running inside our two scheduler Lambdas—`check_time_triggers` and `check_weather`.
+
+#### **check_time_triggers (Time-Based Campaigns)**  
+1. Invoked once every day by an EventBridge cron rule (we run it at 00:05 UTC).  
+2. Scans DynamoDB for businesses whose `triggers.timeBased` object has at least one flag (`weekendSpecials` or `paydaySales`) set to `true`.  
+3. Converts *today* into the business's local timezone (stored as an IANA tz string).  
+4. Evaluates simple heuristics:  
+   • `weekendSpecials` – fires when the local date is **Saturday or Sunday** (`weekday() ∈ {5, 6}`).  
+   • `paydaySales`    – fires when the local day is **1st or 29th** of the month (`day ∈ {1, 15}`).  
+5. For every satisfied rule a one-off EventBridge job is created that will invoke `bedrock_generate` at **10:00 AM local time** 
+6. If for timezones <=UTC, 10AM will already be passed by 12:05AM UTC, so roll the post for them to the next day.
+6. The schedule name is embedded in the event payload and appended to the business's `upcomingPosts` list so duplicate jobs are avoided.
+
+#### **check_weather (Weather-Based Campaigns)**  
+1. Runs every three hours.  
+2. For every business with weather triggers enabled, the following comprehensive weather detection algorithm, that we are very proud of, is run:  
+   1. Ensures latitude/longitude of the business are stored in database from onboarding;
+    a. if missing they are resolved via Open-Meteo's geocoding API and cached.  
+   2. Retrieves the last **30 days** of mean-daily temperature and computes: μ (mean) and σ (population std, floored at 0.5 °C).  
+   3. Fetches the **next 12 hours** of hourly forecast (temperature °C & precipitation mm).  
+   4. Slides a **2-hour window** (`MIN_CONSECUTIVE_HOURS = 2`) over the forecast to detect(We ensure a 2 hour window, to rule out spikes and dips in weather, which can be noisy and misleading):  
+      • `coldWeather` – each hour in the window is cooler than μ − 1.5 σ.  
+      • `hotWeather`  – each hour is warmer than μ + 1.5 σ.  
+      • `rain`        – each hour has precipitation > 0.2 mm.  
+   5. Windows and detections are discarded if the timestamps fall outside the business's `openTimeLocal`–`closeTimeLocal` range (overnight shifts handled). Since the business will not be open, it wouldn't make sense for business to post to come to their stores.
+   6. Only triggers that map to the user's preferences (`coolPleasant`, `hotSunny`, `rainy`) are kept.  
+   6. When the first valid window is found(within business hours & not noisy), an EventBridge one-off schedule is created at that hour, and an entry is added to `upcomingPosts` with full weather context.
+
+3. Short Lambda runs plus one-off schedules keep the system completely serverless and highly scalable, even with thousands of businesses.
+
 **3. AI-Powered Generation:**
 When a trigger fires—either from a scheduled job or an on-demand request—an AI worker Lambda (`bedrock_generate` or `ad_generation`) is invoked. This function:
 1.  Constructs a detailed prompt based on the business's profile stored in AWS DynamoDB (brand voice, products) and the specific trigger (e.g., "Rainy day special") from AWS SQS or AWS EventBridge.
@@ -38,7 +70,7 @@ The SQS queue decouples generation from the final posting. The `post_to_instagra
 3.  Once ready, it publishes the container, making the post live.
 4.  Finally, it retrieves the post's permalink and updates the business's record in DynamoDB with a history of the post.
 
-### AWS Lambda: The Core of AdGenie
+## AWS Lambda: The Core of AdGenie
 
 The entire backend is built on AWS Lambda, which provides a powerful, event-driven, and scalable foundation. This serverless approach was chosen for several key advantages.
 
@@ -48,7 +80,7 @@ The entire backend is built on AWS Lambda, which provides a powerful, event-driv
 *   **Automatic Scaling:** Lambda automatically scales in response to the number of incoming events. Whether one business or one thousand businesses have triggers fire at the same time, the system scales seamlessly without any manual intervention.
 *   **Reduced Operational Overhead:** By using Lambda, we eliminate the need to provision, manage, patch, or scale servers, allowing us to focus entirely on application logic.
 
-**Lambda Trigger Mechanisms in AdGenie:**
+### **Lambda Trigger Mechanisms in AdGenie:**
 
 A total of 4 unique triggers were naturally required to be used by the problem statement:
 We leverage multiple trigger types to create a flexible and responsive system:
@@ -58,7 +90,7 @@ We leverage multiple trigger types to create a flexible and responsive system:
     *   **One-Off Schedules:** Dynamically created schedules that invoke the `bedrock_generate` function at a precise future time for a specific business.
 *   **SQS:** Used for asynchronous processing. It decouples the potentially long-running Instagram posting process from the content generation step, improving reliability and ensuring that generation requests aren't lost if posting fails.
 
-**Microservice Overview:**
+### **Microservice Overview:**
 
 Each Lambda function has a single, well-defined responsibility(atleast we tried to):
 *   `business_create/read/update/delete`: A suite of standard CRUD APIs for managing business profiles.
@@ -70,7 +102,7 @@ Each Lambda function has a single, well-defined responsibility(atleast we tried 
 *   `post_to_instagram`: The final worker that consumes from the SQS queue and publishes content to Instagram.
 *   `check_holidays` / `save_triggers`: *Currently non-operational placeholders from our initial thoughts but we were unable to implement in expected timeframe*
 
-### Next Steps
+## Next Steps
 *   **Implement Performance Dashboard:** Create a view for users to track the engagement and performance of their AI-generated posts.
 *   **Develop Approval Workflow:** Build an optional workflow where users can approve or reject AI-generated content before it is automatically posted.
 *   **Productionize Holiday Triggers:** Integrate a live holiday API and activate the `check_holidays` Lambda to enable marketing campaigns based on national or local holidays.

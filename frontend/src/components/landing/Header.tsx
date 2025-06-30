@@ -20,15 +20,7 @@ const Header = ({ onLogin, onGetStarted, onGoToDashboard, showGoToDashboard }: H
         </h1>
       </div>
       <div className="flex items-center gap-3">
-        <Button 
-          onClick={onGetStarted}
-          color="primary"
-          variant="solid"
-          className="font-semibold px-6 py-2.5 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 text-base"
-        >
-          Get Started
-        </Button>
-        {showGoToDashboard && (
+        {showGoToDashboard ? (
           <Button
             onClick={onGoToDashboard}
             color="primary"
@@ -37,14 +29,25 @@ const Header = ({ onLogin, onGetStarted, onGoToDashboard, showGoToDashboard }: H
           >
             Go to Dashboard
           </Button>
+        ) : (
+          <>
+            <Button 
+              onClick={onGetStarted}
+              color="primary"
+              variant="solid"
+              className="font-semibold px-6 py-2.5 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 text-base"
+            >
+              Get Started
+            </Button>
+            <Button 
+              variant="light" 
+              onClick={onLogin}
+              className="text-gray-600 hover:text-gray-900 font-medium px-6 py-2.5 rounded-full text-base"
+            >
+              Sign In
+            </Button>
+          </>
         )}
-        <Button 
-          variant="light" 
-          onClick={onLogin}
-          className="text-gray-600 hover:text-gray-900 font-medium px-6 py-2.5 rounded-full text-base"
-        >
-          Sign In
-        </Button>
       </div>
     </header>
   );
