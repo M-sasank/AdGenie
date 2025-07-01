@@ -32,13 +32,8 @@ interface BusinessData {
       coolPleasant: boolean;
     };
     timeBased: {
-      mondayCoffee: boolean;
       paydaySales: boolean;
       weekendSpecials: boolean;
-    };
-    holidays: {
-      localFestivals: boolean;
-      internationalHolidays: boolean;
     };
     manual: {
       boostNow: boolean;
@@ -162,13 +157,8 @@ const Onboarding = () => {
         coolPleasant: false
       },
       timeBased: {
-        mondayCoffee: true,
         paydaySales: false,
         weekendSpecials: true
-      },
-      holidays: {
-        localFestivals: true,
-        internationalHolidays: false
       },
       manual: {
         boostNow: true
@@ -520,7 +510,7 @@ const Onboarding = () => {
               onToggle={(checked) => handleTriggerChange('weather', 'rainy', checked)}
             />
             <TriggerCard
-              label="Cool & Pleasant"
+              label="Cool Days"
               description="Perfect weather for outdoor dining or activities"
               checked={businessData.triggers.weather.coolPleasant}
               onToggle={(checked) => handleTriggerChange('weather', 'coolPleasant', checked)}
@@ -538,12 +528,6 @@ const Onboarding = () => {
           </div>
           <div className="space-y-3 ml-11">
             <TriggerCard
-              label="Monday Coffee Motivation"
-              description="Start the week with energizing posts every Monday"
-              checked={businessData.triggers.timeBased.mondayCoffee}
-              onToggle={(checked) => handleTriggerChange('timeBased', 'mondayCoffee', checked)}
-            />
-            <TriggerCard
               label="Payday Specials"
               description="Special offers on the last day of each month"
               checked={businessData.triggers.timeBased.paydaySales}
@@ -554,30 +538,6 @@ const Onboarding = () => {
               description="Weekend promotions and relaxed vibes"
               checked={businessData.triggers.timeBased.weekendSpecials}
               onToggle={(checked) => handleTriggerChange('timeBased', 'weekendSpecials', checked)}
-            />
-          </div>
-        </div>
-
-        {/* Holiday Triggers */}
-        <div className="space-y-4">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-              <PartyPopper className="w-4 h-4 text-purple-600" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900">Holiday Celebrations</h3>
-          </div>
-          <div className="space-y-3 ml-11">
-            <TriggerCard
-              label="Local Festivals"
-              description="Celebrate local holidays and cultural events"
-              checked={businessData.triggers.holidays.localFestivals}
-              onToggle={(checked) => handleTriggerChange('holidays', 'localFestivals', checked)}
-            />
-            <TriggerCard
-              label="International Holidays"
-              description="New Year, Valentine's Day, Christmas, etc."
-              checked={businessData.triggers.holidays.internationalHolidays}
-              onToggle={(checked) => handleTriggerChange('holidays', 'internationalHolidays', checked)}
             />
           </div>
         </div>

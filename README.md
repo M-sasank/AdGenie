@@ -132,3 +132,7 @@ Each Lambda function has a single, well-defined responsibility(atleast we tried 
 - **React (Vite + TypeScript)** – Front-end framework powering the single-page application.
 - **Tailwind CSS & shadcn/ui** – Utility-first CSS and component libraries for styling the frontend.
 - **Bun / npm** – JavaScript build and dependency tooling for the frontend and serverless functions.
+
+## Tribute to AWS SAM
+
+AWS SAM spared me countless console clicks and permission-hunting sessions. Defining resources and IAM policies as code kept the entire stack repeatable and worry-free. I'd honestly credit SAM with at least **30 %** of this project's velocity boost. This project was my introduction to SAM(thanks to eric in slack) - its convenience was a game-changer for me.

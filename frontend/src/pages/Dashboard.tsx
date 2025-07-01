@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import EditBusinessModal from "@/components/EditBusinessModal";
 import { BoostNowModal } from '@/components/BoostNowModal';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { parseISO, differenceInMinutes, differenceInHours, format, isToday, isTomorrow } from 'date-fns';
+import { parseISO, differenceInMinutes, differenceInHours, format, isToday, isTomorrow, differenceInWeeks } from 'date-fns';
 
 const Dashboard = () => {
   const { user, loading, signOut } = useAuth();
@@ -23,6 +23,7 @@ const Dashboard = () => {
   const [publishedPostsList, setPublishedPostsList] = useState<any[]>([]);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [boostOpen, setBoostOpen] = useState(false);
+  const [showAllPosts, setShowAllPosts] = useState(false);
   const navigate = useNavigate();
 
   // Trigger configuration mapping
@@ -30,7 +31,7 @@ const Dashboard = () => {
     weather: {
       hotSunny: { icon: Sun, color: 'text-yellow-600', label: 'Hot & Sunny' },
       rainy: { icon: CloudRain, color: 'text-blue-800', label: 'Rainy Weather' },
-      coolPleasant: { icon: Cloud, color: 'text-blue-600', label: 'Cool & Pleasant' }
+      coolPleasant: { icon: Cloud, color: 'text-blue-600', label: 'Cool Days' }
     },
     timeBased: {
       mondayCoffee: { icon: Clock, color: 'text-green-600', label: 'Monday Coffee' },
@@ -72,6 +73,41 @@ const Dashboard = () => {
       const postDate = new Date(post.timestamp);
       return postDate.getMonth() === currentMonth && postDate.getFullYear() === currentYear;
     }).length;
+  }, [businessData?.publishedPosts]);
+
+  // Total engagement across all published posts (likes + comments + views + shares)
+  const totalEngagement = useMemo(() => {
+    if (typeof (businessData as any)?.totalEngagement === 'number') {
+      return (businessData as any).totalEngagement;
+    }
+    return (businessData?.publishedPosts || []).reduce((acc: number, p: any) => {
+      const a = p.analytics || {};
+      return acc + (a.likeCount || 0) + (a.commentCount || 0) + (a.viewCount || 0) + (a.shareCount || 0);
+    }, 0);
+  }, [businessData?.publishedPosts, (businessData as any)?.totalEngagement]);
+
+  // Average engagement per post
+  const avgEngagementPerPost = useMemo(() => {
+    const posts = businessData?.publishedPosts || [];
+    if (posts.length === 0) return 0;
+    return Math.round(totalEngagement / posts.length);
+  }, [totalEngagement, businessData?.publishedPosts]);
+
+  // Posts per week since first published post
+  const postsPerWeek = useMemo(() => {
+    const posts = businessData?.publishedPosts || [];
+    if (posts.length === 0) return 0;
+    const first = parseISO(posts[posts.length - 1].timestamp || new Date().toISOString());
+    const weeks = Math.max(differenceInWeeks(new Date(), first), 1);
+    return (posts.length / weeks).toFixed(1);
+  }, [businessData?.publishedPosts]);
+
+  // Trigger success: percentage of posts auto-generated via triggerCategory (not manual)
+  const triggerSuccess = useMemo(() => {
+    const posts = businessData?.publishedPosts || [];
+    if (posts.length === 0) return 0;
+    const auto = posts.filter(p => p.triggerCategory && p.triggerCategory !== 'manual').length;
+    return Math.round((auto / posts.length) * 100);
   }, [businessData?.publishedPosts]);
 
   // Helper function to check Instagram connection status
@@ -200,74 +236,75 @@ const Dashboard = () => {
     const publishedRaw: any[] = (businessData as any).publishedPosts || [];
     const now = new Date();
 
-    // Sort by timestamp descending (newest first) and take first 3
-    const recentPosts = publishedRaw
+    // Common transform function
+    const transform = (post: any) => {
+      const postDate = new Date(post.timestamp);
+      let timeAgo = '';
+      const minutesDiff = differenceInMinutes(now, postDate);
+      if (minutesDiff < 60) {
+        timeAgo = `${minutesDiff}m ago`;
+      } else {
+        const hoursDiff = differenceInHours(now, postDate);
+        if (hoursDiff < 24) {
+          timeAgo = `${hoursDiff}h ago`;
+        } else if (isToday(postDate)) {
+          timeAgo = 'Today';
+        } else {
+          timeAgo = format(postDate, 'MMM d');
+        }
+      }
+
+      // Truncate caption for display
+      const displayCaption = post.caption?.length > 100 
+        ? post.caption.substring(0, 100) + '...' 
+        : post.caption;
+
+      // Determine trigger styling and background based on triggerCategory
+      let triggerIcon = Sun;
+      let triggerColor = 'text-yellow-600';
+      let triggerBg = 'bg-yellow-100';
+      let triggerLabel = 'Weather Trigger';
+      let containerBg = 'bg-gradient-to-r from-blue-50 to-blue-100';
+
+      if (post.triggerCategory === 'holiday') {
+        triggerIcon = PartyPopper;
+        triggerColor = 'text-purple-600';
+        triggerBg = 'bg-purple-100';
+        triggerLabel = 'Holiday Trigger';
+        containerBg = 'bg-gradient-to-r from-purple-50 to-purple-100';
+      } else if (post.triggerCategory === 'timeBased') {
+        triggerIcon = Clock;
+        triggerColor = 'text-blue-600';
+        triggerBg = 'bg-blue-100';
+        triggerLabel = 'Time-Based Trigger';
+        containerBg = 'bg-gradient-to-r from-blue-50 to-blue-100';
+      } else if (post.triggerCategory === 'manual') {
+        // Custom Boost posts highlighted with warm gradient
+        triggerIcon = Zap;
+        triggerColor = 'text-orange-600';
+        triggerBg = 'bg-orange-100';
+        triggerLabel = 'Manual Boost';
+        containerBg = 'bg-gradient-to-r from-orange-50 to-red-100';
+      }
+
+      return {
+        ...post,
+        timeAgo,
+        displayCaption,
+        triggerIcon,
+        triggerColor,
+        triggerBg,
+        triggerLabel,
+        containerBg,
+      };
+    };
+
+    const sorted = publishedRaw
       .filter(p => p && p.timestamp)
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      .slice(0, 3)
-      .map(post => {
-        const postDate = new Date(post.timestamp);
-        let timeAgo = '';
-        
-        const minutesDiff = differenceInMinutes(now, postDate);
-        if (minutesDiff < 60) {
-          timeAgo = `${minutesDiff}m ago`;
-        } else {
-          const hoursDiff = differenceInHours(now, postDate);
-          if (hoursDiff < 24) {
-            timeAgo = `${hoursDiff}h ago`;
-          } else if (isToday(postDate)) {
-            timeAgo = 'Today';
-          } else {
-            timeAgo = format(postDate, 'MMM d');
-          }
-        }
+      .map(transform);
 
-        // Truncate caption for display
-        const displayCaption = post.caption?.length > 100 
-          ? post.caption.substring(0, 100) + '...' 
-          : post.caption;
-
-        // Determine trigger styling and background based on triggerCategory
-        let triggerIcon = Sun;
-        let triggerColor = 'text-yellow-600';
-        let triggerBg = 'bg-yellow-100';
-        let triggerLabel = 'Weather Trigger';
-        let containerBg = 'bg-gradient-to-r from-yellow-50 to-orange-50';
-
-        if (post.triggerCategory === 'holiday') {
-          triggerIcon = PartyPopper;
-          triggerColor = 'text-purple-600';
-          triggerBg = 'bg-purple-100';
-          triggerLabel = 'Holiday Trigger';
-          containerBg = 'bg-gradient-to-r from-purple-50 to-purple-100';
-        } else if (post.triggerCategory === 'timeBased') {
-          triggerIcon = Clock;
-          triggerColor = 'text-blue-600';
-          triggerBg = 'bg-blue-100';
-          triggerLabel = 'Time-Based Trigger';
-          containerBg = 'bg-gradient-to-r from-blue-50 to-blue-100';
-        } else if (post.triggerCategory === 'manual') {
-          triggerIcon = Zap;
-          triggerColor = 'text-orange-600';
-          triggerBg = 'bg-orange-100';
-          triggerLabel = 'Manual Boost';
-          containerBg = 'bg-gradient-to-r from-orange-50 to-yellow-50';
-        }
-
-        return {
-          ...post,
-          timeAgo,
-          displayCaption,
-          triggerIcon,
-          triggerColor,
-          triggerBg,
-          triggerLabel,
-          containerBg,
-        };
-      });
-
-    setPublishedPostsList(recentPosts);
+    setPublishedPostsList(sorted);
   }, [businessData]);
 
   if (loading || loadingBusiness) {
@@ -420,7 +457,7 @@ const Dashboard = () => {
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-500">Total Engagement</p>
-                      <p className="text-2xl font-bold text-gray-900">24</p>
+                      <p className="text-2xl font-bold text-gray-900">{totalEngagement}</p>
                     </div>
                     <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
                       <TrendingUp className="h-5 w-5 text-blue-600" />
@@ -433,7 +470,7 @@ const Dashboard = () => {
                       <HelpCircle className="h-3 w-3 text-gray-400 hover:text-gray-600" />
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p className="text-xs">Combined likes, comments, and shares across all your published posts</p>
+                      <p className="text-xs">Combined likes, comments, views, and shares across all your published posts (refreshed every 3 hrs)</p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -540,14 +577,21 @@ const Dashboard = () => {
               <div className="lg:col-span-2 space-y-6">
                 {/* Recent Posts */}
                 <Card className="border-gray-200 bg-white shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2 text-gray-900">
-                      <Sparkles className="h-5 w-5 text-gray-600" />
-                      <span>Recent AI Posts</span>
-                    </CardTitle>
-                    <CardDescription className="text-gray-600">
-                      Latest content from your marketing assistant
-                    </CardDescription>
+                  <CardHeader className="flex items-start justify-between space-y-0">
+                    <div>
+                      <CardTitle className="flex items-center space-x-2 text-gray-900">
+                        <Sparkles className="h-5 w-5 text-gray-600" />
+                        <span>Recent AI Posts</span>
+                      </CardTitle>
+                      <CardDescription className="text-gray-600">
+                        Latest content from your marketing assistant
+                      </CardDescription>
+                    </div>
+                    {publishedPostsList.length > 3 && (
+                      <Button variant="link" className="mt-1" onClick={() => setShowAllPosts(!showAllPosts)}>
+                        {showAllPosts ? 'Collapse' : 'View All'}
+                      </Button>
+                    )}
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {publishedPostsList.length === 0 ? (
@@ -556,7 +600,7 @@ const Dashboard = () => {
                         <p className="text-gray-400 text-xs mt-1">Your AI-generated content will appear here once published</p>
                       </div>
                     ) : (
-                      publishedPostsList.map((post, index) => {
+                      (showAllPosts ? publishedPostsList : publishedPostsList.slice(0,3)).map((post, index) => {
                         const TriggerIcon = post.triggerIcon;
                         return (
                           <div key={post.postID || index} className={`border border-gray-200 rounded-lg p-4 ${post.containerBg}`}>
@@ -607,19 +651,19 @@ const Dashboard = () => {
                   <CardContent>
                     <div className="grid grid-cols-3 gap-4">
                       <div className="text-center p-4 bg-gray-50 rounded-lg">
-                        <p className="text-2xl font-bold text-gray-900">+32%</p>
-                        <p className="text-sm text-gray-600">Engagement Rate</p>
-                        <p className="text-xs text-green-600 mt-1">vs manual posts</p>
+                        <p className="text-2xl font-bold text-gray-900">{avgEngagementPerPost}</p>
+                        <p className="text-sm text-gray-600">Avg Engagement</p>
+                        <p className="text-xs text-green-600 mt-1">per AI post</p>
                       </div>
                       <div className="text-center p-4 bg-gray-50 rounded-lg">
-                        <p className="text-2xl font-bold text-gray-900">4.2x</p>
+                        <p className="text-2xl font-bold text-gray-900">{postsPerWeek}</p>
                         <p className="text-sm text-gray-600">Content Frequency</p>
-                        <p className="text-xs text-blue-600 mt-1">posts per week</p>
+                        <p className="text-xs text-blue-600 mt-1">posts / week</p>
                       </div>
                       <div className="text-center p-4 bg-gray-50 rounded-lg">
-                        <p className="text-2xl font-bold text-gray-900">89%</p>
-                        <p className="text-sm text-gray-600">Trigger Success</p>
-                        <p className="text-xs text-purple-600 mt-1">auto-posted</p>
+                        <p className="text-2xl font-bold text-gray-900">{triggerSuccess}%</p>
+                        <p className="text-sm text-gray-600">Auto Posts</p>
+                        <p className="text-xs text-purple-600 mt-1">of total posts</p>
                       </div>
                     </div>
                   </CardContent>
@@ -640,10 +684,16 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent className="space-y-3">
                 <Button 
-                  onClick={() => setBoostOpen(true)}
-                  className="w-full bg-gray-900 hover:bg-gray-800 text-white font-medium">
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Boost Now
+                  onClick={() => { if(!isGeneratingBoost) setBoostOpen(true); }}
+                  disabled={isGeneratingBoost}
+                  className={`w-full bg-gray-900 hover:bg-gray-800 text-white font-medium flex items-center justify-center ${isGeneratingBoost ? 'opacity-70 cursor-not-allowed' : ''}`}
+                >
+                  {isGeneratingBoost ? (
+                    <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <Sparkles className="w-4 h-4 mr-2" />
+                  )}
+                  {isGeneratingBoost ? 'Generating...' : 'Boost Now'}
                 </Button>
 
                 <Button variant="outline" className="w-full" onClick={() => setIsEditModalOpen(true)}>
